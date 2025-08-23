@@ -18,15 +18,16 @@ export class StudentsController {
   }
 
   @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get()
-  async getAllStudents(
-    @Query('groupId') groupId?: number,
-    @Query('paid') paid?: string,
-  ) {
-    const paidBoolean = paid !== undefined ? paid === 'true' : undefined;
-    return this.studentsService.getAllStudents(groupId, paidBoolean);
-  }
+@UseGuards(AuthGuard, RolesGuard)
+@Get()
+async getAllStudents(
+  @Query('id') id?: number,
+  @Query('firstName') firstName?: string,
+  @Query('lastName') lastName?: string,
+) {
+  return this.studentsService.getAllStudents(id, firstName, lastName);
+}
+
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)

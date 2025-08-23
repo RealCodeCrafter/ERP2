@@ -29,74 +29,41 @@ export class StudentsService {
     private readonly lessonRepository: Repository<Lesson>,
   ) {}
 
-  async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
-    // 🔹 Barcha guruhlar uchun talabalar sonini hisoblash (noyob emas)
-    const allGroups = await this.groupRepository
-      .createQueryBuilder('group')
-      .leftJoinAndSelect('group.students', 'students')
-      .getMany();
-    const totalStudents = allGroups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
+  async getAllStudents(
+  id?: number,
+  firstName?: string,
+  lastName?: string,
+): Promise<any[]> {
+  let studentsQuery = this.studentRepository
+    .createQueryBuilder('student');
 
-    // 🔹 Talabalar ro‘yxati uchun so‘rov
-    let studentsQuery = this.studentRepository
-      .createQueryBuilder('student')
-      .leftJoinAndSelect('student.groups', 'groups')
-      .leftJoinAndSelect('student.profile', 'profile')
-      .leftJoinAndSelect('student.payments', 'payments');
-
-    // 🔹 Guruh bo‘yicha filtr
-    if (groupId) {
-      const group = await this.groupRepository.findOne({
-        where: { id: groupId, status: 'active' },
-        relations: ['students'],
-      });
-      if (!group) {
-        throw new NotFoundException(`Active group with ID ${groupId} not found`);
-      }
-      studentsQuery = studentsQuery.where('groups.id = :groupId', { groupId });
-    }
-
-    // 🔹 To‘lov holati bo‘yicha filtr
-    if (paid !== undefined) {
-      if (paid) {
-        // To‘lov qilganlar: `paid: true` bo‘lgan to‘lovlari bor
-        studentsQuery = studentsQuery.andWhere(
-          'EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
-          { paid: true },
-        );
-      } else {
-        // To‘lov qilmaganlar: hech qanday `paid: true` to‘lovi yo‘q
-        studentsQuery = studentsQuery.andWhere(
-          'NOT EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
-          { paid: true },
-        );
-      }
-    }
-
-    // 🔹 Filtr bo‘lmasa, noyob talabalar
-    const students = await studentsQuery
-      .distinctOn(['student.id']) // Noyob talabalarni ta'minlash
-      .orderBy('student.id', 'ASC')
-      .getMany();
-
-    // 🔹 Talabalar ro‘yxatini formatlash
-    const studentList = students.map(student => ({
-      id: student.id,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      address: student.profile?.address || 'N/A',
-      phone: student.phone || 'N/A',
-      parentPhone: student.profile?.parentPhone || 'N/A',
-    }));
-
-    // 🔹 Natija
-    return {
-      statistics: {
-        totalStudents,
-      },
-      students: studentList,
-    };
+  // 🔹 ID bo‘yicha filtr
+  if (id) {
+    studentsQuery = studentsQuery.andWhere('student.id = :id', { id });
   }
+
+  // 🔹 Ism bo‘yicha filtr
+  if (firstName) {
+    studentsQuery = studentsQuery.andWhere('student.firstName ILIKE :firstName', { firstName: `%${firstName}%` });
+  }
+
+  // 🔹 Familiya bo‘yicha filtr
+  if (lastName) {
+    studentsQuery = studentsQuery.andWhere('student.lastName ILIKE :lastName', { lastName: `%${lastName}%` });
+  }
+
+  const students = await studentsQuery
+    .orderBy('student.id', 'ASC')
+    .getMany();
+
+  // 🔹 Formatlangan ro‘yxat
+  return students.map(student => ({
+    id: student.id,
+    fullName: `${student.firstName} ${student.lastName}`,
+    phone: student.phone || 'N/A',
+  }));
+}
+
 
   async getActiveStudents(name: string, groupId: number): Promise<Student[]> {
     const query: any = { groups: { status: 'active' } };
