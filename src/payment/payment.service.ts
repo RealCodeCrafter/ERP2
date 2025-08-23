@@ -360,10 +360,10 @@ export class PaymentService {
             const latestUnpaidMonth = unpaidMonths[0];
             const message =
               daysUntilReminder === 0
-                ? `Hurmatli ${student.parentsName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi qilinmagan. Iltimos, to'lovni amalga oshiring.`
-                : `Hurmatli ${student.parentsName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi bugun oxirgi muddat. Iltimos, to'lovni amalga oshiring.`;
-            if (student.parentPhone) {
-              await this.sendSMS(student.parentPhone, message);
+                ? `Hurmatli ${student.firstName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi qilinmagan. Iltimos, to'lovni amalga oshiring.`
+                : `Hurmatli ${student.firstName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi bugun oxirgi muddat. Iltimos, to'lovni amalga oshiring.`;
+            if (student.phone) {
+              await this.sendSMS(student.phone, message);
             }
           }
         }

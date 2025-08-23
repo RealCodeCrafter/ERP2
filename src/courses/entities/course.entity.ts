@@ -19,4 +19,5 @@ export class Course {
 
   @OneToMany(() => Payment, (payment) => payment.course)
   payments: Payment[];
+  
 }

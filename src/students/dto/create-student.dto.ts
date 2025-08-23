@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString, IsPhoneNumber, Length, IsInt, IsOptional } from 'class-validator';
+
+import { IsNotEmpty, IsString, IsPhoneNumber, Length, IsInt, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateStudentDto {
   @IsString()
@@ -15,9 +16,9 @@ export class CreateStudentDto {
   @IsNotEmpty()
   phone: string;
 
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  address: string;
+  id: number;
 
   @IsInt()
   @IsNotEmpty()
@@ -34,13 +35,4 @@ export class CreateStudentDto {
   @IsOptional()
   @IsString()
   password?: string;
-
-  @IsString()
-  @IsOptional()
-  @Length(3, 50)
-  parentsName?: string;
-
-  @IsPhoneNumber()
-  @IsOptional()
-  parentPhone?: string;
 }

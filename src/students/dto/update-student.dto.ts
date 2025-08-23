@@ -1,3 +1,5 @@
+
+
 import { IsNumber, IsOptional, IsString, IsPhoneNumber, Length } from 'class-validator';
 
 export class UpdateStudentDto {
@@ -16,8 +18,8 @@ export class UpdateStudentDto {
   phone?: string;
 
   @IsOptional()
-  @IsString()
-  address?: string;
+  @IsNumber()
+  id?: number;
 
   @IsOptional()
   @IsString()
@@ -34,13 +36,4 @@ export class UpdateStudentDto {
   @IsOptional()
   @IsNumber()
   groupId?: number;
-
-  @IsOptional()
-  @IsString()
-  @Length(3, 50)
-  parentsName?: string;
-
-  @IsOptional()
-  @IsPhoneNumber()
-  parentPhone?: string;
 }

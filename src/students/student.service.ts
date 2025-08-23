@@ -1,3 +1,4 @@
+
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -83,9 +84,9 @@ export class StudentsService {
       id: student.id,
       firstName: student.firstName,
       lastName: student.lastName,
-      address: student.address || 'N/A',
+      address: student.profile?.address || 'N/A',
       phone: student.phone || 'N/A',
-      parentPhone: student.parentPhone || 'N/A',
+      parentPhone: student.profile?.parentPhone || 'N/A',
     }));
 
     // 🔹 Natija
@@ -181,14 +182,13 @@ export class StudentsService {
   }
 
   async searchStudents(name: string): Promise<Student[]> {
-    const students = await this.studentRepository.find({
-      where: [
-        { firstName: ILike(`%${name}%`) },
-        { lastName: ILike(`%${name}%`) },
-        { parentsName: ILike(`%${name}%`) },
-      ],
-      relations: ['groups', 'groups.course', 'profile', 'payments'],
-    });
+    const students = await this.studentRepository.createQueryBuilder('student')
+      .leftJoinAndSelect('student.profile', 'profile')
+      .leftJoinAndSelect('student.groups', 'groups')
+      .leftJoinAndSelect('groups.course', 'course')
+      .leftJoinAndSelect('student.payments', 'payments')
+      .where('student.firstName ILIKE :name OR student.lastName ILIKE :name OR profile.parentsName ILIKE :name', { name: `%${name}%` })
+      .getMany();
 
     if (students.length === 0) {
       throw new NotFoundException(`No students found for name "${name}"`);
@@ -197,11 +197,16 @@ export class StudentsService {
   }
 
   async createStudent(createStudentDto: CreateStudentDto): Promise<Student> {
-    const { phone, username, password, groupId, firstName, lastName, address, parentsName, parentPhone } = createStudentDto;
+    const { phone, username, password, groupId, firstName, lastName, id, courseId } = createStudentDto;
 
     const existingStudent = await this.studentRepository.findOne({ where: { phone } });
     if (existingStudent) {
       throw new ConflictException(`Student with phone ${phone} already exists`);
+    }
+
+    const existingId = await this.studentRepository.findOne({ where: { id } });
+    if (existingId) {
+      throw new ConflictException(`Student with ID ${id} already exists`);
     }
 
     if (username) {
@@ -214,11 +219,11 @@ export class StudentsService {
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
     const group = await this.groupRepository.findOne({ 
-      where: { id: groupId, status: 'active' }, 
+      where: { id: groupId, status: 'active', course: { id: courseId } }, 
       relations: ['course', 'students'] 
     });
     if (!group) {
-      throw new NotFoundException(`Active group with ID ${groupId} not found`);
+      throw new NotFoundException(`Active group with ID ${groupId} and course ID ${courseId} not found`);
     }
 
     const profile = this.profileRepository.create({
@@ -226,22 +231,17 @@ export class StudentsService {
       lastName,
       username,
       password: hashedPassword,
-      address,
       phone,
-      parentsName,
-      parentPhone,
     });
     const savedProfile = await this.profileRepository.save(profile);
 
     const student = this.studentRepository.create({
+      id,
       firstName,
       lastName,
       phone,
-      address,
       username,
       password: hashedPassword,
-      parentsName,
-      parentPhone,
       groups: [group],
       role: 'student',
       profile: savedProfile,
@@ -260,22 +260,32 @@ export class StudentsService {
   async updateStudent(id: number, updateStudentDto: UpdateStudentDto): Promise<Student> {
     const student = await this.getStudentById(id);
 
-    const { groupId, parentsName, parentPhone, firstName, lastName, phone, address, username, password } = updateStudentDto;
+    const { groupId, firstName, lastName, phone, username, password, courseId } = updateStudentDto;
 
     if (groupId) {
-      const group = await this.groupRepository.findOne({
-        where: { id: groupId, status: 'active' },
-        relations: ['course', 'students'],
-      });
-      if (!group) {
-        throw new NotFoundException(`Active group with ID ${groupId} not found`);
-      }
-      if (!student.groups.some(g => g.id === groupId)) {
-        student.groups = [group];
-        group.students = group.students ? [...group.students, student] : [student];
-        await this.groupRepository.save(group);
-      }
-    }
+  const groupQuery: any = { id: groupId, status: 'active' as 'active' }; // enum sifatida cast
+  if (courseId) {
+    groupQuery.course = { id: courseId };
+  }
+
+  const group = await this.groupRepository.findOne({
+    where: groupQuery,
+    relations: ['course', 'students'],
+  });
+
+  if (!group) {
+    throw new NotFoundException(
+      `Active group with ID ${groupId}${courseId ? ` and course ID ${courseId}` : ''} not found`,
+    );
+  }
+
+  if (!student.groups.some((g) => g.id === groupId)) {
+    student.groups = [group];
+    group.students = group.students ? [...group.students, student] : [student];
+    await this.groupRepository.save(group);
+  }
+}
+
 
     if (username) {
       const existingUsername = await this.studentRepository.findOne({ where: { username } });
@@ -301,26 +311,20 @@ export class StudentsService {
       firstName: firstName || student.firstName,
       lastName: lastName || student.lastName,
       phone: phone || student.phone,
-      address: address || student.address,
       username: username !== undefined ? username : student.username,
-      parentsName: parentsName !== undefined ? parentsName : student.parentsName,
-      parentPhone: parentPhone !== undefined ? parentPhone : student.parentPhone,
     });
 
     const updatedStudent = await this.studentRepository.save(student);
 
-    if (firstName || lastName || phone || address || username !== undefined || password !== undefined || parentsName !== undefined || parentPhone !== undefined) {
+    if (firstName || lastName || phone || username !== undefined || password !== undefined) {
       const profile = await this.profileRepository.findOne({ where: { student: { id } } });
       if (profile) {
         Object.assign(profile, {
           firstName: firstName || profile.firstName,
           lastName: lastName || profile.lastName,
           phone: phone || profile.phone,
-          address: address || profile.address,
           username: username !== undefined ? username : profile.username,
           password: password ? await bcrypt.hash(password, 10) : (updateStudentDto.password === null ? null : profile.password),
-          parentsName: parentsName !== undefined ? parentsName : profile.parentsName,
-          parentPhone: parentPhone !== undefined ? parentPhone : profile.parentPhone,
         });
         await this.profileRepository.save(profile);
       }
@@ -454,9 +458,6 @@ export class StudentsService {
       firstName: student.firstName,
       lastName: student.lastName,
       phone: student.phone,
-      address: student.address,
-      parentsPhone: student.parentPhone,
-      parentsName: student.parentsName,
       education: groups.length > 0 ? groups : [],
     };
   }
