@@ -42,7 +42,6 @@ export class User {
   course: Course; // Added for courseId
 
   @ManyToMany(() => Group, (group) => group.users)
-  @JoinTable()
   groups: Group[];
 
   @OneToMany(() => Attendance, (attendance) => attendance.user)

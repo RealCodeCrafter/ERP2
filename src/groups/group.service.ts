@@ -22,11 +22,9 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
   const { name, courseId, teacherId, userIds, startTime, endTime, daysOfWeek, price } =
     createGroupDto;
 
-  // 1️⃣ Course tekshirish
   const course = await this.courseRepository.findOne({ where: { id: courseId } });
   if (!course) throw new BadRequestException('Course not found');
 
-  // 2️⃣ Teacher tekshirish
   let teacher: User | null = null;
   if (teacherId) {
     teacher = await this.userRepository.findOne({
@@ -38,7 +36,6 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
     }
   }
 
-  // 3️⃣ Studentlarni olish (userIds orqali)
   let studentEntities: User[] = [];
   if (Array.isArray(userIds) && userIds.length) {
     studentEntities = await this.userRepository.find({
@@ -50,7 +47,6 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
     });
   }
 
-  // 4️⃣ Shu kursda shu nomdagi group bor-yo‘qligini tekshirish
   const existingGroup = await this.groupRepository.findOne({
     where: { name, course: { id: courseId } },
     relations: ['course'],
@@ -61,7 +57,6 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
     );
   }
 
-  // 5️⃣ Group yaratish
   const group = this.groupRepository.create({
     name,
     course,
@@ -73,8 +68,6 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
     daysOfWeek,
     price,
   });
-
-  // 6️⃣ Saqlash va qaytarish
   return this.groupRepository.save(group);
 }
 
@@ -357,17 +350,30 @@ async searchGroups(name?: string, teacherName?: string): Promise<Group[]> {
   return this.groupRepository.save(group);
 }
 
-async removeStudentFromGroup(groupId: number, userId: number): Promise<Group> {
-  const group = await this.getGroupById(groupId);
+  async removeStudentFromGroup(
+  groupId: number,
+  userId: number,
+): Promise<{ message: string }> {
+  const group = await this.groupRepository.findOne({
+    where: { id: groupId },
+    relations: ['users', 'users.role'],
+  });
+  if (!group) throw new NotFoundException('Group not found');
 
   const inGroup = group.users.find(
     (s) => s.id === userId && s.role?.name === 'student',
   );
-  if (!inGroup) throw new NotFoundException('Student not found in group');
+  if (!inGroup) {
+    throw new NotFoundException('Student not found in this group');
+  }
 
-  group.users = group.users.filter((s) => s.id !== userId);
-  return this.groupRepository.save(group);
+  group.users = group.users.filter((u) => u.id !== userId);
+  await this.groupRepository.save(group);
+
+  return { message: 'Student removed from group successfully' };
 }
+
+
 
 async update(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
   const group = await this.getGroupById(id);

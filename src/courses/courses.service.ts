@@ -21,13 +21,22 @@ export class CourseService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-  async create(createCourseDto: CreateCourseDto): Promise<Course> {
-    const existingCourse = await this.courseRepository.findOne({ where: { name: createCourseDto.name } });
+   async create(createCourseDto: CreateCourseDto): Promise<Course> {
+    const existingCourse = await this.courseRepository.findOne({
+      where: { name: createCourseDto.name },
+    });
+
     if (existingCourse) {
-      throw new BadRequestException(`Course with name ${createCourseDto.name} already exists`);
+      throw new BadRequestException(
+        `Course with name "${createCourseDto.name}" already exists`,
+      );
     }
 
-    const course = this.courseRepository.create(createCourseDto);
+    const course = this.courseRepository.create({
+      ...createCourseDto,
+      description: createCourseDto.description || null,
+    });
+
     return this.courseRepository.save(course);
   }
 

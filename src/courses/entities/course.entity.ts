@@ -7,11 +7,11 @@ export class Course {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100, unique: true })
   name: string;
 
-  @Column({ type: 'varchar', length: 500 })
-  description: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  description: string | null;
 
   @OneToMany(() => Group, (group) => group.course)
   groups: Group[];
