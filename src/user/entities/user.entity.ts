@@ -1,6 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, OneToMany, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, OneToMany, ManyToOne } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
-import { Course } from '../../courses/entities/course.entity'; // Assuming a Course entity exists
+import { Course } from '../../courses/entities/course.entity';
 import { Attendance } from '../../attendance/entities/attendance.entity';
 import { Payment } from '../../budget/entities/payment.entity';
 import { Role } from '../../role/entities/role.entity';
@@ -39,20 +39,20 @@ export class User {
   role: Role;
 
   @ManyToOne(() => Course, { onDelete: 'SET NULL', nullable: true })
-  course: Course; // Added for courseId
+  course: Course;
 
   @ManyToMany(() => Group, (group) => group.users)
   groups: Group[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.user)
+  @OneToMany(() => Attendance, (attendance) => attendance.user, { cascade: true })
   attendances: Attendance[];
 
-  @OneToMany(() => Payment, (payment) => payment.user)
+  @OneToMany(() => Payment, (payment) => payment.user, { cascade: true })
   payments: Payment[];
 
   @OneToMany(() => Group, (group) => group.user)
   groupsAsTeacher: Group[];
 
-  @OneToMany(() => Application, (application) => application.user)
+  @OneToMany(() => Application, (application) => application.user, { cascade: true })
   applications: Application[];
 }

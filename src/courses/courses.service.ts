@@ -59,7 +59,7 @@ export class CourseService {
   const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
   let totalStudents = 0;
-  let thisMonthGroups = 0;
+  let thisMonthCourses = 0;
 
   const courseData = courses.map(course => {
     const activeGroups = course.groups.filter(g => g.status === 'active');
@@ -68,11 +68,9 @@ export class CourseService {
       totalStudents += g.users?.filter(u => u.role?.name === 'student').length || 0;
     });
 
-    course.groups.forEach(g => {
-      if (g.createdAt >= firstDayOfMonth && g.createdAt <= lastDayOfMonth) {
-        thisMonthGroups++;
-      }
-    });
+    if (course.createdAt >= firstDayOfMonth && course.createdAt <= lastDayOfMonth) {
+      thisMonthCourses++;
+    }
 
     return {
       id: course.id,
@@ -90,12 +88,11 @@ export class CourseService {
     stats: {
       totalCourses,
       totalStudents,
-      thisMonthGroups,
+      thisMonthCourses,
     },
     data: courseData,
   };
 }
-
 
 
   async findOne(id: number): Promise<Course> {
@@ -115,8 +112,13 @@ export class CourseService {
     return this.courseRepository.save(course);
   }
 
-  async remove(id: number): Promise<void> {
-    const course = await this.findOne(id);
+   async remove(id: number): Promise<{ message: string }> {
+    const course = await this.courseRepository.findOne({ where: { id } });
+
+    if (!course) {
+      throw new NotFoundException(`Course with id ${id} does not exist`);
+    }
     await this.courseRepository.remove(course);
+    return { message: `Course with id ${id} has been successfully deleted` };
   }
 }

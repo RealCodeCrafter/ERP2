@@ -22,6 +22,6 @@ export class Lesson {
   @ManyToOne(() => Group, (group) => group.lessons, { onDelete: 'CASCADE' })
   group: Group;
 
-  @OneToMany(() => Attendance, (attendance) => attendance.lesson)
+  @OneToMany(() => Attendance, (attendance) => attendance.lesson, { cascade: true })
   attendances: Attendance[];
 }

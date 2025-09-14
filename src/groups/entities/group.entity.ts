@@ -1,4 +1,3 @@
-// group.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, OneToMany, CreateDateColumn } from 'typeorm';
 import { Course } from '../../courses/entities/course.entity';
 import { User } from '../../user/entities/user.entity';
@@ -39,19 +38,25 @@ export class Group {
   @ManyToOne(() => User, (user) => user.groups, { onDelete: 'SET NULL', nullable: true })
   user: User;
 
-  @ManyToMany(() => User, (user) => user.groups, { cascade: true })
-  @JoinTable()
-  users: User[];
+  @ManyToMany(() => User, (user) => user.groups, {
+  cascade: false, 
+  onDelete: 'CASCADE',
+})
+@JoinTable({
+  name: 'users_groups_groups', 
+})
+users: User[];
 
-  @OneToMany(() => Lesson, (lesson) => lesson.group)
+
+  @OneToMany(() => Lesson, (lesson) => lesson.group, { cascade: true })
   lessons: Lesson[];
 
-  @OneToMany(() => Payment, (payment) => payment.group)
+  @OneToMany(() => Payment, (payment) => payment.group, { cascade: true })
   payments: Payment[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.lesson.group)
+  @OneToMany(() => Attendance, (attendance) => attendance.lesson.group, { cascade: true })
   attendances: Attendance[];
 
-  @OneToMany(() => Application, (application) => application.group)
+  @OneToMany(() => Application, (application) => application.group, { cascade: true })
   applications: Application[];
 }

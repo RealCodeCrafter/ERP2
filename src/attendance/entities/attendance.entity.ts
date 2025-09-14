@@ -16,7 +16,7 @@ export class Attendance {
   @Column({ type: 'enum', enum: ['present', 'absent', 'late'], default: 'absent' })
   status: 'present' | 'absent' | 'late';
 
-  @ManyToOne(() => User, user => user.attendances)
+  @ManyToOne(() => User, (user) => user.attendances, { onDelete: 'SET NULL', nullable: true })
   teacher: User;
 
   @CreateDateColumn()

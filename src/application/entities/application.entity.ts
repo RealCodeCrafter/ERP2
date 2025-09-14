@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 import { Group } from '../../groups/entities/group.entity';
+import { Course } from 'src/courses/entities/course.entity';
 
 @Entity('applications')
 export class Application {
@@ -22,9 +23,12 @@ export class Application {
   @CreateDateColumn()
   createdAt: Date;
 
-  @ManyToOne(() => User, (user) => user.applications, { nullable: true })
+  @ManyToOne(() => User, (user) => user.applications, { nullable: true, onDelete: 'CASCADE' })
   user: User;
 
-  @ManyToOne(() => Group, (group) => group.applications, { nullable: true })
+  @ManyToOne(() => Group, (group) => group.applications, { nullable: true, onDelete: 'CASCADE' })
   group: Group;
+
+  @ManyToOne(() => Course, (course) => course.applications, { nullable: true, onDelete: 'CASCADE' })
+course: Course;
 }

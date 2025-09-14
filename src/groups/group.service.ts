@@ -22,9 +22,11 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
   const { name, courseId, teacherId, userIds, startTime, endTime, daysOfWeek, price } =
     createGroupDto;
 
+  // 1️⃣ Course tekshirish
   const course = await this.courseRepository.findOne({ where: { id: courseId } });
   if (!course) throw new BadRequestException('Course not found');
 
+  // 2️⃣ Teacher tekshirish
   let teacher: User | null = null;
   if (teacherId) {
     teacher = await this.userRepository.findOne({
@@ -36,6 +38,7 @@ async create(createGroupDto: CreateGroupDto): Promise<Group> {
     }
   }
 
+  // 3️⃣ Studentlarni olish (userIds orqali)
   let studentEntities: User[] = [];
   if (Array.isArray(userIds) && userIds.length) {
     studentEntities = await this.userRepository.find({
@@ -418,10 +421,16 @@ async update(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
   return this.groupRepository.save(group);
 }
 
-async delete(id: number): Promise<void> {
-  const group = await this.getGroupById(id);
-  await this.groupRepository.remove(group);
-}
+async delete(id: number): Promise<{ message: string }> {
+    const group = await this.groupRepository.findOne({ where: { id } });
+    if (!group) {
+      throw new NotFoundException(`Group with id ${id} does not exist`);
+    }
+
+    await this.groupRepository.remove(group);
+
+    return { message: `Group with id ${id} has been successfully deleted` };
+  }
 
 async getGroupsByCourseId(courseId: number): Promise<Group[]> {
   return this.groupRepository.find({

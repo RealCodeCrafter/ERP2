@@ -16,4 +16,8 @@ export class CreateApplicationDto {
   @IsOptional()
   @IsNumber()
   groupId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  courseId?: number;
 }

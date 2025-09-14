@@ -26,8 +26,8 @@ export class Payment {
   @Column({ type: 'varchar', length: 7, nullable: true })
   monthFor: string;
 
-@Column({ type: 'enum', enum: ['click', 'naxt', 'percheslinei'], nullable: false })
-paymentType: 'click' | 'naxt' | 'percheslinei';
+  @Column({ type: 'enum', enum: ['click', 'naxt', 'percheslinei'], nullable: false })
+  paymentType: 'click' | 'naxt' | 'percheslinei';
 
   @CreateDateColumn()
   createdAt: Date;

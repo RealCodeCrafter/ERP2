@@ -39,9 +39,10 @@ export class CourseController {
   }
 
   @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard)
-  @Delete(':id')
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.courseService.remove(+id);
-  }
+@UseGuards(AuthGuard)
+@Delete(':id')
+async remove(@Param('id') id: string): Promise<{ message: string }> {
+  return this.courseService.remove(+id);
+}
+
 }

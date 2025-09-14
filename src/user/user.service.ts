@@ -316,10 +316,16 @@ export class UserService {
 }
 
 
-  async remove(id: number): Promise<void> {
-    const user = await this.findOne(id);
-    await this.userRepository.remove(user);
+async remove(id: number): Promise<{ message: string }> {
+  const user = await this.userRepository.findOne({ where: { id } });
+  if (!user) {
+    return { message: `User with id ${id} does not exist` };
   }
+
+  await this.userRepository.remove(user);
+  return { message: `User with id ${id} has been successfully deleted` };
+}
+
 
   async getAdmins(firstName?: string, lastName?: string, phone?: string): Promise<User[]> {
     const query: any = { role: { name: 'admin' } };
