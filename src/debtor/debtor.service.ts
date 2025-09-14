@@ -32,7 +32,7 @@ export class DebtorService {
 
   const students = await this.userRepository.find({
     where: query,
-    relations: ['groups', 'payments'],
+    relations: ['groups', 'payments', 'payments.group'],
   });
 
   let totalDebt = 0;
@@ -46,7 +46,7 @@ export class DebtorService {
 
     for (const group of filteredGroups) {
       const payments = user.payments.filter(
-        (p) => p.group.id === group.id && p.paid,
+        (p) => p.group && p.group.id === group.id && p.paid,
       );
 
       const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -85,7 +85,12 @@ export class DebtorService {
     }
   }
 
-  return { totalDebt, debtorCount, debtors };
+  return {
+    totalDebt: totalDebt || 0,
+    debtorCount: debtorCount || 0,
+    debtors,
+  };
 }
+
 
 }
