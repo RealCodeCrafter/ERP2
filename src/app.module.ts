@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
-
 import { User } from './user/entities/user.entity';
 import { Role } from './role/entities/role.entity';
 import { Application } from './application/entities/application.entity';
@@ -11,7 +10,6 @@ import { Course } from './courses/entities/course.entity';
 import { Payment } from './budget/entities/payment.entity';
 import { Attendance } from './attendance/entities/attendance.entity';
 import { Lesson } from './lesson/entities/lesson.entity';
-
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { RoleModule } from './role/role.module';

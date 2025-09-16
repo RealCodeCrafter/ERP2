@@ -307,7 +307,10 @@ async getAllGroups(search?: string): Promise<any> {
     course: group.course?.name || 'N/A',
     studentCount: group.users?.filter((u) => u.role?.name === 'student').length || 0,
     status: group.status,
-    price: group.price
+    price: group.price,
+    data: `${group.startTime} ${group.endTime}`,
+    dataDays: group.daysOfWeek
+
   }));
 
   return {
