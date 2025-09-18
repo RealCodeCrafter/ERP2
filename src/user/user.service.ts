@@ -427,14 +427,31 @@ async remove(id: number): Promise<{ message: string }> {
       }),
     );
   }
+  return filteredStudents.map(s => {
+    const groupsWithPayment = s.groups.map(g => {
+      const paymentsThisMonth = s.payments.filter(
+        p => p.group.id === g.id && p.monthFor === monthQuery,
+      );
 
-  return filteredStudents.map(s => ({
-    id: s.id,
-    fullName: `${s.firstName} ${s.lastName}`,
-    phone: s.phone,
-    address: s.address,
-    groups: s.groups.map(g => g.name),
-  }));
+      const totalPaid = paymentsThisMonth.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      return {
+        groupId: g.id,
+        groupName: g.name,
+        price: Number(g.price),
+        paidAmount: totalPaid,
+        isPaid: totalPaid >= Number(g.price),
+      };
+    });
+
+    return {
+      id: s.id,
+      fullName: `${s.firstName} ${s.lastName}`,
+      phone: s.phone,
+      address: s.address,
+      groups: groupsWithPayment,
+    };
+  });
 }
 
 
