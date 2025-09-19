@@ -24,13 +24,17 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
 
   @Get('all/students')
 getAllStudents(
-  @Query('groupId', new DefaultValuePipe(undefined), ParseIntPipe) groupId?: number,
+  @Query('groupId') groupIdRaw?: string,
   @Query('paid') paid?: 'true' | 'false',
   @Query('firstName') firstName?: string,
   @Query('lastName') lastName?: string,
   @Query('phone') phone?: string,
   @Query('address') address?: string,
 ) {
+  const groupId = groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw))
+    ? Number(groupIdRaw)
+    : undefined;
+
   return this.userService.getAllStudents({
     groupId,
     paid,
@@ -40,8 +44,6 @@ getAllStudents(
     address,
   });
 }
-
-
 
 
   @Roles('admin', 'superAdmin')
