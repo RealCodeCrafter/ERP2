@@ -22,8 +22,32 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
     return this.userService.getDashboard();
   }
 
+  @Get('all/students')
+getAllStudents(
+  @Query('groupId') groupIdRaw?: string,
+  @Query('paid') paid?: 'true' | 'false',
+  @Query('firstName') firstName?: string,
+  @Query('lastName') lastName?: string,
+  @Query('phone') phone?: string,
+  @Query('address') address?: string,
+  @Query('monthFor') monthFor?: string, // qo‘shildi
+) {
+  const groupId =
+    groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw))
+      ? Number(groupIdRaw)
+      : undefined;
 
-  @Get('all/students') getAllStudents( @Query('groupId') groupIdRaw?: string, @Query('paid') paid?: 'true' | 'false', @Query('firstName') firstName?: string, @Query('lastName') lastName?: string, @Query('phone') phone?: string, @Query('address') address?: string, ) { const groupId = groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw)) ? Number(groupIdRaw) : undefined; return this.userService.getAllStudents({ groupId, paid, firstName, lastName, phone, address, }); }
+  return this.userService.getAllStudents({
+    groupId,
+    paid,
+    firstName,
+    lastName,
+    phone,
+    address,
+    monthFor,
+  });
+}
+
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)

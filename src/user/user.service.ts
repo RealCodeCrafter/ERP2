@@ -374,7 +374,7 @@ async remove(id: number): Promise<{ message: string }> {
     return this.findOne(id);
   }
 
-async getAllStudents(filters: {
+  async getAllStudents(filters: {
   groupId?: number;
   paid?: 'true' | 'false';
   firstName?: string;
@@ -391,86 +391,74 @@ async getAllStudents(filters: {
   if (phone) query.phone = ILike(`%${phone}%`);
   if (address) query.address = ILike(`%${address}%`);
 
-  // 1) payments.group relationini qo'shamiz, shunda p.group mavjud bo'ladi
   const students = await this.userRepository.find({
     where: query,
     relations: ['groups', 'payments', 'payments.group'],
   });
 
-  // 2) Agar groupId berilgan bo'lsa, avval DBda bunday guruh bor-yo'qligini tekshirish (majburiy emas, lekin tavsiya etiladi)
-  if (groupId !== undefined) {
-    const groupExists = await this.groupRepository.findOne({ where: { id: groupId } });
-    if (!groupExists) {
-      // Tanlov: quyidagi qatordan birini ishlating:
-      // return []; // — agar topilmasa bo'sh natija qaytishini xohlasangiz
-      throw new NotFoundException(`Group with id=${groupId} not found`); // — yoki xatolik tashlashni istasangiz
-    }
-  }
+  const monthQuery =
+    monthFor ||
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  // 3) Null-safe map qilish
-  let filteredStudents = (students || []).map(s => ({
+  let filteredStudents = students.map(s => ({
     ...s,
     groups: s.groups || [],
     payments: s.payments || [],
   }));
 
-  // 4) groupId bo'yicha filter (agar berilgan bo'lsa)
   if (groupId !== undefined) {
-    filteredStudents = filteredStudents
-      .map(s => ({ ...s, groups: (s.groups || []).filter(g => g && g.id === groupId) }))
-      .filter(s => (s.groups || []).length > 0);
-  }
-
-  const monthQuery =
-    monthFor || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-
-  // 5) paid bo'yicha filter — p.group?.id yoki p.groupId dan fallback qilingan
-  if (paid) {
-    filteredStudents = filteredStudents.filter(student =>
-      (student.groups || []).some(group => {
-        if (!group) return false;
-        const paymentsThisMonth = (student.payments || []).filter(p => {
-          const paymentGroupId = p.group?.id ?? (p as any).groupId ?? null;
-          return paymentGroupId === group.id && p.monthFor === monthQuery;
-        });
-
-        const totalPaid = paymentsThisMonth.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-        const groupPrice = Number(group.price ?? 0);
-
-        return paid === 'true' ? totalPaid >= groupPrice : totalPaid < groupPrice;
-      }),
+    filteredStudents = filteredStudents.filter(s =>
+      s.groups.some(g => g && g.id === groupId),
     );
   }
 
-  // 6) Oxirgi map — xavfsiz qiymatlar bilan
+  if (paid) {
+    filteredStudents = filteredStudents.filter(student => {
+      const relevantPayments = student.payments.filter(p => {
+        const isSameMonth = p.monthFor === monthQuery;
+        const isSameGroup = groupId ? p.group?.id === groupId : true;
+        return isSameMonth && isSameGroup;
+      });
+
+      const relevantGroups = groupId
+        ? student.groups.filter(g => g.id === groupId)
+        : student.groups;
+
+      return relevantGroups.some(group => {
+        const paymentsForGroup = relevantPayments.filter(p => p.group?.id === group.id);
+        const totalPaid = paymentsForGroup.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+        return paid === 'true'
+          ? totalPaid >= Number(group.price ?? 0)
+          : totalPaid < Number(group.price ?? 0);
+      });
+    });
+  }
+
   return filteredStudents.map(s => {
-    const groupsWithPayment = (s.groups || [])
-      .map(g => {
-        if (!g) return null;
-        const paymentsThisMonth = (s.payments || []).filter(p => {
-          const paymentGroupId = p.group?.id ?? (p as any).groupId ?? null;
-          return paymentGroupId === g.id && p.monthFor === monthQuery;
-        });
-        const totalPaid = paymentsThisMonth.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-        return {
-          groupId: g.id,
-          groupName: g.name,
-          price: Number(g.price ?? 0),
-          paidAmount: totalPaid,
-          isPaid: totalPaid >= Number(g.price ?? 0),
-        };
-      })
-      .filter(Boolean);
+    const filteredPayments = s.payments
+      .filter(p => p.monthFor === monthQuery)
+      .map(p => ({
+        id: p.id,
+        amount: Number(p.amount ?? 0),
+        monthFor: p.monthFor,
+        paid: p.paid,
+        paymentType: p.paymentType,
+        createdAt: p.createdAt,
+        group: p.group
+          ? { id: p.group.id, name: p.group.name, price: Number(p.group.price ?? 0) }
+          : null,
+      }));
 
     return {
       id: s.id,
       fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
       phone: s.phone,
       address: s.address,
-      groups: groupsWithPayment,
+      payments: filteredPayments,
     };
   });
 }
+
 
 
 async getWorkers(): Promise<any> {
