@@ -22,6 +22,9 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
     return this.userService.getDashboard();
   }
 
+  
+  @Roles('admin', 'superAdmin', "teacher")
+@UseGuards(AuthGuard)
   @Get('all/students')
 getAllStudents(
   @Query('groupId') groupIdRaw?: string,
