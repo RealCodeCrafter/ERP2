@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Req, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -24,7 +24,7 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
 
   @Get('all/students')
 getAllStudents(
-  @Query('groupId', ParseIntPipe) groupId?: number,
+  @Query('groupId', new DefaultValuePipe(undefined), ParseIntPipe) groupId?: number,
   @Query('paid') paid?: 'true' | 'false',
   @Query('firstName') firstName?: string,
   @Query('lastName') lastName?: string,
@@ -40,6 +40,7 @@ getAllStudents(
     address,
   });
 }
+
 
 
 

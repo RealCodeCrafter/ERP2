@@ -381,7 +381,7 @@ async remove(id: number): Promise<{ message: string }> {
   lastName?: string;
   phone?: string;
   address?: string;
-  monthFor?: string; // YYYY-MM format
+  monthFor?: string;
 }) {
   const { groupId, paid, firstName, lastName, phone, address, monthFor } = filters;
 
