@@ -21,23 +21,17 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
   getDashboard(@Req() req: any) {
     return this.userService.getDashboard();
   }
-
   
-  @Roles('admin', 'superAdmin', "teacher")
-@UseGuards(AuthGuard)
+
   @Get('all/students')
 getAllStudents(
-  @Query('groupId') groupIdRaw?: string,
+  @Query('groupId', new DefaultValuePipe(undefined), ParseIntPipe) groupId?: number,
   @Query('paid') paid?: 'true' | 'false',
   @Query('firstName') firstName?: string,
   @Query('lastName') lastName?: string,
   @Query('phone') phone?: string,
   @Query('address') address?: string,
 ) {
-  const groupId = groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw))
-    ? Number(groupIdRaw)
-    : undefined;
-
   return this.userService.getAllStudents({
     groupId,
     paid,
