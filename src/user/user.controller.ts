@@ -21,27 +21,9 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
   getDashboard(@Req() req: any) {
     return this.userService.getDashboard();
   }
-  
 
-  @Get('all/students')
-getAllStudents(
-  @Query('groupId', new DefaultValuePipe(undefined), ParseIntPipe) groupId?: number,
-  @Query('paid') paid?: 'true' | 'false',
-  @Query('firstName') firstName?: string,
-  @Query('lastName') lastName?: string,
-  @Query('phone') phone?: string,
-  @Query('address') address?: string,
-) {
-  return this.userService.getAllStudents({
-    groupId,
-    paid,
-    firstName,
-    lastName,
-    phone,
-    address,
-  });
-}
 
+  @Get('all/students') getAllStudents( @Query('groupId') groupIdRaw?: string, @Query('paid') paid?: 'true' | 'false', @Query('firstName') firstName?: string, @Query('lastName') lastName?: string, @Query('phone') phone?: string, @Query('address') address?: string, ) { const groupId = groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw)) ? Number(groupIdRaw) : undefined; return this.userService.getAllStudents({ groupId, paid, firstName, lastName, phone, address, }); }
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)
