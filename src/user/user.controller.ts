@@ -17,11 +17,17 @@ create(@Body() createUserDto: CreateUserDto, @Req() req) {
 }
 
 
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard)
   @Get('dashboard')
   getDashboard(@Req() req: any) {
     return this.userService.getDashboard();
   }
 
+  
+  @Roles('admin', 'superAdmin', 'teacher')
+@UseGuards(AuthGuard)
   @Get('all/students')
 getAllStudents(
   @Query('groupId') groupIdRaw?: string,
