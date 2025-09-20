@@ -392,7 +392,7 @@ async getAllStudents(filters: {
 
   const students = await this.userRepository.find({
     where: query,
-    relations: ['groups', 'payments', 'payments.group'],
+    relations: ['groups', 'groups.course', 'groups.user', 'payments', 'payments.group'],
   });
 
   const monthQuery =
@@ -412,14 +412,26 @@ async getAllStudents(filters: {
     );
   }
 
-  // map to response with paid=false if no payment exists
   const studentsWithPayments = filteredStudents.map(s => {
+    // groups to include all details
+    const groupsList = s.groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      teacher: g.user ? `${g.user.firstName} ${g.user.lastName}`.trim() : null,
+      course: g.course ? g.course.name : null,
+      studentCount: g.users?.length || 0,
+      status: g.status,
+      price: Number(g.price ?? 0),
+      data: g.startTime && g.endTime ? `${g.startTime} ${g.endTime}` : null,
+      dataDays: g.daysOfWeek || [],
+    }));
+
+    // payments per group
     const paymentsList = s.groups.flatMap(group => {
       const groupPayments = s.payments.filter(
         p => p.group?.id === group.id && p.monthFor === monthQuery
       );
 
-      // Agar payment mavjud bo'lmasa, bo'sh payment bilan paid=false qo'shamiz
       if (groupPayments.length === 0) {
         return [
           {
@@ -450,16 +462,12 @@ async getAllStudents(filters: {
       fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
       phone: s.phone,
       address: s.address,
-      groups: s.groups.map(g => ({
-        id: g.id,
-        name: g.name,
-        price: Number(g.price ?? 0),
-      })),
+      groups: groupsList,
       payments: paymentsList,
     };
   });
 
-  // Filter by paid if required
+  // filter by paid status if needed
   if (paid) {
     return studentsWithPayments.filter(s =>
       s.payments.some(p => (paid === 'true' ? p.paid : !p.paid))
