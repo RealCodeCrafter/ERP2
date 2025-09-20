@@ -36,7 +36,7 @@ getAllStudents(
   @Query('lastName') lastName?: string,
   @Query('phone') phone?: string,
   @Query('address') address?: string,
-  @Query('monthFor') monthFor?: string, // qo‘shildi
+  @Query('monthFor') monthFor?: string,
 ) {
   const groupId =
     groupIdRaw && groupIdRaw !== '' && !isNaN(Number(groupIdRaw))

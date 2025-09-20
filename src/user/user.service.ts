@@ -373,8 +373,7 @@ async remove(id: number): Promise<{ message: string }> {
   async getMe(id: number): Promise<User> {
     return this.findOne(id);
   }
-
-  async getAllStudents(filters: {
+async getAllStudents(filters: {
   groupId?: number;
   paid?: 'true' | 'false';
   firstName?: string;
@@ -406,59 +405,65 @@ async remove(id: number): Promise<{ message: string }> {
     payments: s.payments || [],
   }));
 
+  // filter by groupId
   if (groupId !== undefined) {
     filteredStudents = filteredStudents.filter(s =>
       s.groups.some(g => g && g.id === groupId),
     );
   }
 
+  // filter by paid status
   if (paid) {
     filteredStudents = filteredStudents.filter(student => {
-      const relevantPayments = student.payments.filter(p => {
-        const isSameMonth = p.monthFor === monthQuery;
-        const isSameGroup = groupId ? p.group?.id === groupId : true;
-        return isSameMonth && isSameGroup;
-      });
-
       const relevantGroups = groupId
         ? student.groups.filter(g => g.id === groupId)
         : student.groups;
 
       return relevantGroups.some(group => {
-        const paymentsForGroup = relevantPayments.filter(p => p.group?.id === group.id);
+        const paymentsForGroup = student.payments.filter(
+          p => p.group?.id === group.id && p.monthFor === monthQuery
+        );
+
         const totalPaid = paymentsForGroup.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-        return paid === 'true'
-          ? totalPaid >= Number(group.price ?? 0)
-          : totalPaid < Number(group.price ?? 0);
+        const isPaid = totalPaid >= Number(group.price ?? 0);
+
+        return paid === 'true' ? isPaid : !isPaid;
       });
     });
   }
 
+  // map to response
   return filteredStudents.map(s => {
-    const filteredPayments = s.payments
-      .filter(p => p.monthFor === monthQuery)
-      .map(p => ({
-        id: p.id,
-        amount: Number(p.amount ?? 0),
-        monthFor: p.monthFor,
-        paid: p.paid,
-        paymentType: p.paymentType,
-        createdAt: p.createdAt,
-        group: p.group
-          ? { id: p.group.id, name: p.group.name, price: Number(p.group.price ?? 0) }
-          : null,
-      }));
+    const paymentsByMonth = s.groups.map(group => {
+      const groupPayments = s.payments.filter(
+        p => p.group?.id === group.id && p.monthFor === monthQuery
+      );
+
+      const totalPaid = groupPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+
+      return {
+        group: { id: group.id, name: group.name, price: Number(group.price ?? 0) },
+        payments: groupPayments.map(p => ({
+          id: p.id,
+          amount: Number(p.amount ?? 0),
+          monthFor: p.monthFor,
+          paid: p.paid,
+          paymentType: p.paymentType,
+          createdAt: p.createdAt,
+        })),
+        paid: totalPaid >= Number(group.price ?? 0),
+      };
+    });
 
     return {
       id: s.id,
       fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
       phone: s.phone,
       address: s.address,
-      payments: filteredPayments,
+      payments: paymentsByMonth,
     };
   });
 }
-
 
 
 async getWorkers(): Promise<any> {
