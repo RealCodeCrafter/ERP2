@@ -412,38 +412,38 @@ async getAllStudents(filters: {
     );
   }
 
-  // filter by paid status
-  if (paid) {
-    filteredStudents = filteredStudents.filter(student => {
-      const relevantGroups = groupId
-        ? student.groups.filter(g => g.id === groupId)
-        : student.groups;
+  // map to response with paid=false if no payment exists
+  const studentsWithPayments = filteredStudents.map(s => {
+    const paymentsList = s.groups.flatMap(group => {
+      const groupPayments = s.payments.filter(
+        p => p.group?.id === group.id && p.monthFor === monthQuery
+      );
 
-      return relevantGroups.some(group => {
-        const paymentsForGroup = student.payments.filter(
-          p => p.group?.id === group.id && p.monthFor === monthQuery
-        );
+      // Agar payment mavjud bo'lmasa, bo'sh payment bilan paid=false qo'shamiz
+      if (groupPayments.length === 0) {
+        return [
+          {
+            id: null,
+            amount: 0,
+            monthFor: monthQuery,
+            paid: false,
+            paymentType: null,
+            groupId: group.id,
+            createdAt: null,
+          },
+        ];
+      }
 
-        const totalPaid = paymentsForGroup.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-        const isPaid = totalPaid >= Number(group.price ?? 0);
-
-        return paid === 'true' ? isPaid : !isPaid;
-      });
-    });
-  }
-
-  return filteredStudents.map(s => {
-    const paymentsList = s.payments
-      .filter(p => !groupId || p.group?.id === groupId)
-      .map(p => ({
+      return groupPayments.map(p => ({
         id: p.id,
         amount: Number(p.amount ?? 0),
         monthFor: p.monthFor,
-        paid: p.paid,
+        paid: p.paid ?? (Number(p.amount ?? 0) >= Number(group.price ?? 0)),
         paymentType: p.paymentType,
-        groupId: p.group?.id,
+        groupId: group.id,
         createdAt: p.createdAt,
       }));
+    });
 
     return {
       id: s.id,
@@ -458,6 +458,15 @@ async getAllStudents(filters: {
       payments: paymentsList,
     };
   });
+
+  // Filter by paid if required
+  if (paid) {
+    return studentsWithPayments.filter(s =>
+      s.payments.some(p => (paid === 'true' ? p.paid : !p.paid))
+    );
+  }
+
+  return studentsWithPayments;
 }
 
 
