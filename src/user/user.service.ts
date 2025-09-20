@@ -432,35 +432,30 @@ async getAllStudents(filters: {
     });
   }
 
-  // map to response
   return filteredStudents.map(s => {
-    const paymentsByMonth = s.groups.map(group => {
-      const groupPayments = s.payments.filter(
-        p => p.group?.id === group.id && p.monthFor === monthQuery
-      );
-
-      const totalPaid = groupPayments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-
-      return {
-        group: { id: group.id, name: group.name, price: Number(group.price ?? 0) },
-        payments: groupPayments.map(p => ({
-          id: p.id,
-          amount: Number(p.amount ?? 0),
-          monthFor: p.monthFor,
-          paid: p.paid,
-          paymentType: p.paymentType,
-          createdAt: p.createdAt,
-        })),
-        paid: totalPaid >= Number(group.price ?? 0),
-      };
-    });
+    const paymentsList = s.payments
+      .filter(p => !groupId || p.group?.id === groupId)
+      .map(p => ({
+        id: p.id,
+        amount: Number(p.amount ?? 0),
+        monthFor: p.monthFor,
+        paid: p.paid,
+        paymentType: p.paymentType,
+        groupId: p.group?.id,
+        createdAt: p.createdAt,
+      }));
 
     return {
       id: s.id,
       fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
       phone: s.phone,
       address: s.address,
-      payments: paymentsByMonth,
+      groups: s.groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        price: Number(g.price ?? 0),
+      })),
+      payments: paymentsList,
     };
   });
 }
