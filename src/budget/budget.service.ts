@@ -23,35 +23,17 @@ export class BudgetService {
   const now = new Date();
   const currentMonth = month || now.getMonth() + 1;
   const currentYear = year || now.getFullYear();
-  const startDate = new Date(currentYear, currentMonth - 1, 1);
-  const endDate = new Date(currentYear, currentMonth, 0);
   const monthFor = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
-  const groupCounts = await this.groupRepository
-    .createQueryBuilder('g')
-    .leftJoin('g.users', 'u')
-    .where('g.status = :status', { status: 'active' })
-    .andWhere('g.createdAt <= :endDate', { endDate })
-    .select('g.id', 'id')
-    .addSelect('g.price', 'price')
-    .addSelect('COUNT(u.id)', 'studentCount')
-    .groupBy('g.id')
-    .addGroupBy('g.price')
-    .getRawMany();
+  const { groups } = await this.getAllGroups();
 
-  console.log('Group Counts:', groupCounts);
-
-  let expectedRevenue = groupCounts.reduce((acc, row, index) => {
-    const price = Number(row.price ?? 0);
-    const count = Number(row.studentCount ?? 0);
+  let expectedRevenue = groups.reduce((acc, group) => {
+    const price = parseFloat(group.price ?? '0');
+    const count = Number(group.studentCount ?? 0);
     const groupRevenue = price * count;
-    console.log(`Group ${row.id}: price=${price}, count=${count}, revenue=${groupRevenue}`);
+    console.log(`Group ${group.id}: price=${price}, count=${count}, revenue=${groupRevenue}`);
     return acc + groupRevenue;
   }, 0);
-
-  const previousUnpaid = await this.calculatePreviousUnpaid(currentYear, currentMonth);
-  console.log('Previous Unpaid:', previousUnpaid);
-  expectedRevenue += previousUnpaid;
 
   const paidRes = await this.paymentRepository
     .createQueryBuilder('payment')
@@ -98,6 +80,68 @@ export class BudgetService {
       role: u.role?.name,
       salary: Number(u.salary),
     })),
+  };
+}
+
+async getAllGroups(search?: string): Promise<any> {
+  const groupsQuery = this.groupRepository
+    .createQueryBuilder('group')
+    .leftJoinAndSelect('group.course', 'course')
+    .leftJoinAndSelect('group.user', 'user')
+    .leftJoinAndSelect('user.role', 'userRole')
+    .leftJoinAndSelect('group.users', 'users')
+    .leftJoinAndSelect('users.role', 'usersRole')
+    .where('group.status = :status', { status: 'active' });
+
+  if (search && search.trim() !== '') {
+    groupsQuery.andWhere('group.name ILIKE :search', {
+      search: `%${search.trim()}%`,
+    });
+  }
+
+  const groups = await groupsQuery
+    .orderBy('group.createdAt', 'DESC')
+    .getMany();
+
+  const totalGroups = groups.length;
+  const totalStudents = groups.reduce(
+    (sum, group) =>
+      sum + (group.users?.filter((u) => u.role?.name === 'student').length || 0),
+    0,
+  );
+  const activeCourses = new Set(groups.map((group) => group.course.id)).size;
+
+  const monthStart = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+  );
+  const totalGroupsThisMonth = groups.filter(
+    (group) => group.createdAt >= monthStart,
+  ).length;
+
+  const groupList = groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    teacher: group.user
+      ? `${group.user.firstName} ${group.user.lastName}`
+      : 'N/A',
+    course: group.course?.name || 'N/A',
+    studentCount: group.users?.filter((u) => u.role?.name === 'student').length || 0,
+    status: group.status,
+    price: group.price,
+    data: `${group.startTime} ${group.endTime}`,
+    dataDays: group.daysOfWeek,
+  }));
+
+  return {
+    statistics: {
+      totalGroups,
+      totalStudents,
+      activeCourses,
+      totalGroupsThisMonth,
+    },
+    groups: groupList,
   };
 }
 
