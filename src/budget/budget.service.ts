@@ -26,41 +26,44 @@ export class BudgetService {
   const startDate = new Date(currentYear, currentMonth - 1, 1);
   const endDate = new Date(currentYear, currentMonth, 0);
 
-  const totalExpected = await this.groupRepository
-    .createQueryBuilder('group')
-    .select('SUM(group.price * COUNT(users.id))', 'sum')
-    .leftJoin('group.users', 'users')
-    .where('group.status = :status', { status: 'active' })
-    .andWhere('group.createdAt <= :endDate', { endDate })
-    .groupBy('group.id')
+  const groupCounts = await this.groupRepository
+    .createQueryBuilder('g')
+    .leftJoin('g.users', 'u')
+    .where('g.status = :status', { status: 'active' })
+    .andWhere('g.createdAt <= :endDate', { endDate })
+    .select('g.id', 'id')
+    .addSelect('g.price', 'price')
+    .addSelect('COUNT(u.id)', 'studentCount')
+    .groupBy('g.id')
+    .addGroupBy('g.price')
     .getRawMany();
 
-  let expectedRevenue = totalExpected.reduce(
-    (sum, row) => sum + Number(row.sum || 0),
-    0
-  );
+  let expectedRevenue = groupCounts.reduce((acc, row) => {
+    const price = Number(row.price ?? row.g_price ?? 0);
+    const count = Number(row.studentCount ?? row.studentcount ?? 0);
+    return acc + price * count;
+  }, 0);
 
   const previousUnpaid = await this.calculatePreviousUnpaid(currentYear, currentMonth);
   expectedRevenue += previousUnpaid;
 
-  const paidAmount = await this.paymentRepository
+  const paidRes = await this.paymentRepository
     .createQueryBuilder('payment')
     .select('SUM(payment.amount)', 'sum')
     .where('payment.paid = :paid', { paid: true })
     .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
     .getRawOne();
 
-  const totalPaid = Number(paidAmount.sum) || 0;
+  const totalPaid = Number(paidRes?.sum || 0);
   expectedRevenue -= totalPaid;
 
-  const staff = await this.userRepository.find({
-    where: { salary: Not(IsNull()) },
-  });
+  const staff = await this.userRepository
+    .createQueryBuilder('u')
+    .leftJoinAndSelect('u.role', 'role')
+    .where('u.salary IS NOT NULL')
+    .getMany();
 
-  const totalSalary = staff.reduce(
-    (sum, user) => sum + Number(user.salary || 0),
-    0
-  );
+  const totalSalary = staff.reduce((sum, u) => sum + Number(u.salary || 0), 0);
 
   const netProfit = totalPaid - totalSalary;
   const unpaidAmount = expectedRevenue;
@@ -103,28 +106,32 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0);
 
-      const totalExpected = await this.groupRepository
-        .createQueryBuilder('group')
-        .select('SUM(group.price * COUNT(users.id))', 'sum')
-        .leftJoin('group.users', 'users')
-        .where('group.status = :status', { status: 'active' })
-        .andWhere('group.createdAt <= :endDate', { endDate })
-        .groupBy('group.id')
+      const groupCounts = await this.groupRepository
+        .createQueryBuilder('g')
+        .leftJoin('g.users', 'u')
+        .where('g.status = :status', { status: 'active' })
+        .andWhere('g.createdAt <= :endDate', { endDate })
+        .select('g.id', 'id')
+        .addSelect('g.price', 'price')
+        .addSelect('COUNT(u.id)', 'studentCount')
+        .groupBy('g.id')
+        .addGroupBy('g.price')
         .getRawMany();
 
-      let expectedRevenue = totalExpected.reduce(
-        (sum, row) => sum + Number(row.sum || 0),
-        0
-      );
+      const expectedRevenue = groupCounts.reduce((acc, row) => {
+        const price = Number(row.price ?? row.g_price ?? 0);
+        const count = Number(row.studentCount ?? row.studentcount ?? 0);
+        return acc + price * count;
+      }, 0);
 
-      const paidAmount = await this.paymentRepository
+      const paidRes = await this.paymentRepository
         .createQueryBuilder('payment')
         .select('SUM(payment.amount)', 'sum')
         .where('payment.paid = :paid', { paid: true })
         .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
         .getRawOne();
 
-      const totalPaid = Number(paidAmount.sum) || 0;
+      const totalPaid = Number(paidRes?.sum || 0);
       previousUnpaid += expectedRevenue - totalPaid;
     }
   }
