@@ -37,7 +37,7 @@ export class BudgetService {
 
   let expectedRevenue = totalExpected.reduce(
     (sum, row) => sum + Number(row.sum || 0),
-    0,
+    0
   );
 
   const previousUnpaid = await this.calculatePreviousUnpaid(currentYear, currentMonth);
@@ -59,7 +59,7 @@ export class BudgetService {
 
   const totalSalary = staff.reduce(
     (sum, user) => sum + Number(user.salary || 0),
-    0,
+    0
   );
 
   const netProfit = totalPaid - totalSalary;
@@ -70,19 +70,6 @@ export class BudgetService {
     const response = await axios.get('https://www.floatrates.com/daily/uzs.json');
     usdExchangeRate = response.data.usd.rate;
   } catch {}
-
-  const payments = await this.paymentRepository.find({
-    where: { paid: true, createdAt: Between(startDate, endDate) },
-    relations: ['user', 'group'],
-    order: { createdAt: 'DESC' },
-  });
-
-  const paymentList = payments.map(payment => ({
-    name: `${payment.user.firstName} ${payment.user.lastName}`,
-    group: payment.group.name,
-    date: payment.createdAt.toLocaleDateString(),
-    amount: Number(payment.amount),
-  }));
 
   return {
     expectedRevenue,
@@ -102,7 +89,6 @@ export class BudgetService {
       role: u.role?.name,
       salary: Number(u.salary),
     })),
-    paymentList,
   };
 }
 
@@ -128,7 +114,7 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
 
       let expectedRevenue = totalExpected.reduce(
         (sum, row) => sum + Number(row.sum || 0),
-        0,
+        0
       );
 
       const paidAmount = await this.paymentRepository
@@ -145,6 +131,7 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
 
   return previousUnpaid;
 }
+
   async getPayments(firstName?: string, lastName?: string, groupId?: number): Promise<Payment[]> {
     const query: any = { paid: true };
     if (firstName) {
