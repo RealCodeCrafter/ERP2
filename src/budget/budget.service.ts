@@ -41,13 +41,16 @@ export class BudgetService {
 
   console.log('Group Counts:', groupCounts);
 
-  let expectedRevenue = groupCounts.reduce((acc, row) => {
+  let expectedRevenue = groupCounts.reduce((acc, row, index) => {
     const price = Number(row.price ?? 0);
     const count = Number(row.studentCount ?? 0);
-    return acc + price * count;
+    const groupRevenue = price * count;
+    console.log(`Group ${row.id}: price=${price}, count=${count}, revenue=${groupRevenue}`);
+    return acc + groupRevenue;
   }, 0);
 
   const previousUnpaid = await this.calculatePreviousUnpaid(currentYear, currentMonth);
+  console.log('Previous Unpaid:', previousUnpaid);
   expectedRevenue += previousUnpaid;
 
   const paidRes = await this.paymentRepository
