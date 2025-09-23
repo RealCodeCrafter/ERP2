@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, OneToMany, CreateDateColumn } from 'typeorm';
 import { Course } from '../../courses/entities/course.entity';
 import { User } from '../../user/entities/user.entity';
-import { Lesson } from '../../lesson/entities/lesson.entity';
+// import { Lesson } from '../../lesson/entities/lesson.entity';
 import { Payment } from '../../budget/entities/payment.entity';
 import { Attendance } from '../../attendance/entities/attendance.entity';
 import { Application } from '../../application/entities/application.entity';
@@ -48,14 +48,15 @@ export class Group {
 users: User[];
 
 
-  @OneToMany(() => Lesson, (lesson) => lesson.group, { cascade: true })
-  lessons: Lesson[];
+  // @OneToMany(() => Lesson, (lesson) => lesson.group, { cascade: true })
+  // lessons: Lesson[];
 
   @OneToMany(() => Payment, (payment) => payment.group, { cascade: true })
   payments: Payment[];
 
-  @OneToMany(() => Attendance, (attendance) => attendance.lesson.group, { cascade: true })
-  attendances: Attendance[];
+  @OneToMany(() => Attendance, (attendance) => attendance.group, { cascade: true })
+attendances: Attendance[];
+
 
   @OneToMany(() => Application, (application) => application.group, { cascade: true })
   applications: Application[];

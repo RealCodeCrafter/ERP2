@@ -112,6 +112,14 @@ export class GroupController {
     return this.groupService.getAllGroups(search);
   }
 
+  @Roles('teacher')
+  @UseGuards(AuthGuard)
+  @Get('my/schedule')
+  async getTeacherCurrentMonthSchedules(@Req() req: any) {
+    const teacherId = req.user.id;
+    return this.groupService.getTeacherCurrentMonthSchedules(teacherId);
+  }
+
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)
   @Put(':id')

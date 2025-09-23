@@ -1,5 +1,4 @@
-// create-attendance.dto.ts
-import { IsNotEmpty, IsNumber, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsArray, ValidateNested, IsEnum, IsString, IsOptional, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum AttendanceStatus {
@@ -17,13 +16,24 @@ export class SingleAttendanceCreateDto {
   @IsNotEmpty()
   @IsEnum(AttendanceStatus)
   status: AttendanceStatus;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @Type(() => Number)
+  grade?: number;
 }
 
 export class CreateAttendanceDto {
   @IsNotEmpty()
   @IsNumber()
   @Type(() => Number)
-  lessonId: number;
+  groupId: number;
+
+  @IsNotEmpty()
+  @IsString()
+  date: string;
 
   @IsNotEmpty()
   @IsArray()

@@ -79,15 +79,15 @@ export class PaymentController {
     return this.paymentService.findUnpaidPayments(studentName, groupId, monthFor);
   }
 
-  @Roles('admin', 'superAdmin', 'teacher')
-  @UseGuards(AuthGuard)
-  @Get('unpaid-months')
-  getUnpaidMonths(
-    @Query('userId') userId: number,
-    @Query('groupId') groupId: number,
-  ) {
-    return this.paymentService.getUnpaidMonths(userId, groupId);
-  }
+  // @Roles('admin', 'superAdmin', 'teacher')
+  // @UseGuards(AuthGuard)
+  // @Get('unpaid-months')
+  // getUnpaidMonths(
+  //   @Query('userId') userId: number,
+  //   @Query('groupId') groupId: number,
+  // ) {
+  //   return this.paymentService.getUnpaidMonths(userId, groupId);
+  // }
 
   @Roles('admin', 'superAdmin', 'teacher')
   @UseGuards(AuthGuard)

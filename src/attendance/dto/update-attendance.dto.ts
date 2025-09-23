@@ -1,7 +1,6 @@
-// update-attendance.dto.ts
-import { IsNotEmpty, IsEnum, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsNumber, IsArray, ValidateNested, IsOptional, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AttendanceStatus } from './create-attendance.dto'; // yoki bitta common faylga ko'chiring
+import { AttendanceStatus } from './create-attendance.dto';
 
 export class SingleAttendanceUpdateDto {
   @IsNotEmpty()
@@ -12,6 +11,13 @@ export class SingleAttendanceUpdateDto {
   @IsNotEmpty()
   @IsEnum(AttendanceStatus)
   status: AttendanceStatus;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @Type(() => Number)
+  grade?: number;
 }
 
 export class UpdateAttendanceDto {

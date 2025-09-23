@@ -9,7 +9,6 @@ import { Group } from './groups/entities/group.entity';
 import { Course } from './courses/entities/course.entity';
 import { Payment } from './budget/entities/payment.entity';
 import { Attendance } from './attendance/entities/attendance.entity';
-import { Lesson } from './lesson/entities/lesson.entity';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { RoleModule } from './role/role.module';
@@ -20,7 +19,6 @@ import { GroupModule } from './groups/group.module';
 import { CourseModule } from './courses/courses.module'
 import { PaymentModule } from './payment/payment.module';
 import { AttendanceModule } from './attendance/attendance.module';
-import { LessonModule } from './lesson/lesson.module';
 
 @Module({
   imports: [
@@ -49,7 +47,6 @@ import { LessonModule } from './lesson/lesson.module';
           Course,
           Payment,
           Attendance,
-          Lesson,
         ],
         synchronize: true,
         autoLoadEntities: true,
@@ -65,8 +62,7 @@ import { LessonModule } from './lesson/lesson.module';
     GroupModule,
     CourseModule,
     PaymentModule,
-    AttendanceModule,
-    LessonModule,
+    AttendanceModule
   ],
   controllers: [],
   providers: [],

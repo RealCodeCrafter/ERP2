@@ -6,10 +6,9 @@ import { Payment } from '../budget/entities/payment.entity';
 import { User } from '../user/entities/user.entity';
 import { Group } from '../groups/entities/group.entity';
 import { Course } from '../courses/entities/course.entity';
-import { Lesson } from '../lesson/entities/lesson.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, User, Group, Course, Lesson])],
+  imports: [TypeOrmModule.forFeature([Payment, User, Group, Course])],
   controllers: [PaymentController],
   providers: [PaymentService],
   exports: [TypeOrmModule],

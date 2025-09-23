@@ -2,8 +2,8 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UseGuards, Quer
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
-import { AuthGuard} from '../auth/auth.guard';
-import { Roles } from 'src/auth/roles.decorator';
+import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -41,22 +41,22 @@ export class AttendanceController {
     return this.attendanceService.getAttendanceStatistics(groupId);
   }
 
-  @Roles('admin', 'teacher', 'superAdmin')
-  @UseGuards(AuthGuard)
-  @Get('search/daily-stats')
-  async getDailyAttendanceStats(
-    @Query('groupId') groupId?: string,
-    @Query('date') date?: string,
-    @Query('period') period?: 'daily' | 'weekly' | 'monthly',
-    @Query('studentName') studentName?: string,
-  ) {
-    return this.attendanceService.getDailyAttendanceStats(
-      groupId ? parseInt(groupId, 10) : undefined,
-      date,
-      period,
-      studentName,
-    );
-  }
+  // @Roles('admin', 'superAdmin', 'teacher')
+  // @UseGuards(AuthGuard)
+  // @Get('search/daily-stats')
+  // async getDailyAttendanceStats(
+  //   @Query('groupId') groupId?: string,
+  //   @Query('date') date?: string,
+  //   @Query('period') period?: 'daily' | 'weekly' | 'monthly',
+  //   @Query('studentName') studentName?: string,
+  // ) {
+  //   return this.attendanceService.getDailyAttendanceStats(
+  //     groupId ? parseInt(groupId, 10) : undefined,
+  //     date,
+  //     period,
+  //     studentName,
+  //   );
+  // }
 
   @Roles('teacher', 'admin', 'superAdmin')
   @UseGuards(AuthGuard)
@@ -85,23 +85,25 @@ export class AttendanceController {
 
   @Roles('teacher')
   @UseGuards(AuthGuard)
-  @Patch('/lesson/:lessonId')
+  @Patch('/group/:groupId/date/:date')
   async bulkUpdateAttendance(
     @Req() req: any,
-    @Param('lessonId') lessonId: string,
+    @Param('groupId') groupId: string,
+    @Param('date') date: string,
     @Body() updateAttendanceDto: UpdateAttendanceDto,
   ) {
     const teacherId = Number(req.user.id);
     if (isNaN(teacherId)) {
       throw new BadRequestException('Invalid teacher ID in token');
     }
-
-    const id = Number(lessonId);
+    const id = Number(groupId);
     if (isNaN(id)) {
-      throw new BadRequestException('Invalid lesson ID');
+      throw new BadRequestException('Invalid group ID');
     }
-
-    return this.attendanceService.bulkUpdateByLesson(id, updateAttendanceDto, teacherId);
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      throw new BadRequestException('Invalid date format, use YYYY-MM-DD');
+    }
+    return this.attendanceService.bulkUpdateByGroupAndDate(id, date, updateAttendanceDto, teacherId);
   }
 
   @Roles('teacher')

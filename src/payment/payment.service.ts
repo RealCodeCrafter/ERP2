@@ -7,7 +7,6 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { User } from '../user/entities/user.entity';
 import { Group } from '../groups/entities/group.entity';
 import { Course } from '../courses/entities/course.entity';
-import { Lesson } from '../lesson/entities/lesson.entity';
 
 @Injectable()
 export class PaymentService {
@@ -19,9 +18,7 @@ export class PaymentService {
     @InjectRepository(Group)
     private readonly groupRepository: Repository<Group>,
     @InjectRepository(Course)
-    private readonly courseRepository: Repository<Course>,
-    @InjectRepository(Lesson)
-    private readonly lessonRepository: Repository<Lesson>,
+    private readonly courseRepository: Repository<Course>
   ) {}
 
   async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
@@ -211,65 +208,6 @@ export class PaymentService {
       where: query,
       relations: ['user', 'group', 'course'],
     });
-  }
-
-    async getUnpaidMonths(userId: number, groupId: number): Promise<string[]> {
-    const group = await this.groupRepository.findOne({
-      where: { id: groupId, status: 'active' },
-      relations: ['users', 'users.role'],
-    });
-    if (!group) {
-      throw new NotFoundException(`Active group with ID ${groupId} not found`);
-    }
-
-    // ✅ Check student inside group
-    const user = group.users.find(
-      (s) => s.id === userId && s.role?.name === 'student',
-    );
-    if (!user) {
-      throw new NotFoundException(
-        `Student with ID ${userId} not found in group`,
-      );
-    }
-
-    const firstLesson = await this.lessonRepository.findOne({
-      where: { group: { id: groupId } },
-      order: { lessonDate: 'ASC' },
-    });
-    if (!firstLesson) {
-      throw new NotFoundException(`No lessons found for group with ID ${groupId}`);
-    }
-
-    const firstLessonDate = new Date(firstLesson.lessonDate);
-    const today = new Date();
-    const unpaidMonths: string[] = [];
-
-    let currentDate = new Date(
-      firstLessonDate.getFullYear(),
-      firstLessonDate.getMonth(),
-      1,
-    );
-    while (currentDate <= today) {
-      const monthFor = `${currentDate.getFullYear()}-${String(
-        currentDate.getMonth() + 1,
-      ).padStart(2, '0')}`;
-
-      const payment = await this.paymentRepository.findOne({
-        where: {
-          user: { id: userId },
-          group: { id: groupId },
-          monthFor,
-          paid: true,
-        },
-      });
-
-      if (!payment) {
-        unpaidMonths.push(monthFor);
-      }
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
-
-    return unpaidMonths;
   }
 
   async getMonthlyIncome(month: number, year: number): Promise<number> {
