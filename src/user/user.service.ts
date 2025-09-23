@@ -106,8 +106,6 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
-  
-
   async getDashboard(): Promise<any> {
   const totalStudents = await this.userRepository.count({ where: { role: { name: 'student' } } });
 
@@ -150,8 +148,8 @@ export class UserService {
   try {
     const response = await axios.get('https://www.floatrates.com/daily/uzs.json');
     usdExchangeRate = response.data.usd.rate || usdExchangeRate;
-  } catch (err) {
-    throw new HttpException('USD kursini olishda xatolik yuz berdi', 500);
+  } catch (error) {
+    console.error('Valyuta kursi xatosi:', error);
   }
 
   const annualRevenueUSD = (annualRevenue * usdExchangeRate).toFixed(2);

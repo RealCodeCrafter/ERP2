@@ -25,6 +25,7 @@ export class BudgetService {
   const currentYear = year || now.getFullYear();
   const startDate = new Date(currentYear, currentMonth - 1, 1);
   const endDate = new Date(currentYear, currentMonth, 0);
+  const monthFor = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
   const groupCounts = await this.groupRepository
     .createQueryBuilder('g')
@@ -39,8 +40,8 @@ export class BudgetService {
     .getRawMany();
 
   let expectedRevenue = groupCounts.reduce((acc, row) => {
-    const price = Number(row.price ?? row.g_price ?? 0);
-    const count = Number(row.studentCount ?? row.studentcount ?? 0);
+    const price = Number(row.price ?? 0);
+    const count = Number(row.studentCount ?? 0);
     return acc + price * count;
   }, 0);
 
@@ -51,11 +52,11 @@ export class BudgetService {
     .createQueryBuilder('payment')
     .select('SUM(payment.amount)', 'sum')
     .where('payment.paid = :paid', { paid: true })
-    .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
+    .andWhere('payment.monthFor = :monthFor', { monthFor })
     .getRawOne();
 
   const totalPaid = Number(paidRes?.sum || 0);
-  expectedRevenue -= totalPaid;
+  const unpaidAmount = expectedRevenue - totalPaid;
 
   const staff = await this.userRepository
     .createQueryBuilder('u')
@@ -64,15 +65,15 @@ export class BudgetService {
     .getMany();
 
   const totalSalary = staff.reduce((sum, u) => sum + Number(u.salary || 0), 0);
-
   const netProfit = totalPaid - totalSalary;
-  const unpaidAmount = expectedRevenue;
 
   let usdExchangeRate = 0.000079;
   try {
     const response = await axios.get('https://www.floatrates.com/daily/uzs.json');
     usdExchangeRate = response.data.usd.rate;
-  } catch {}
+  } catch (error) {
+    console.error('Valyuta kursi xatosi:', error);
+  }
 
   return {
     expectedRevenue,
@@ -105,12 +106,14 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
     for (let month = startMonth; month <= maxMonth; month++) {
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0);
+      const monthFor = `${year}-${String(month).padStart(2, '0')}`;
 
       const groupCounts = await this.groupRepository
         .createQueryBuilder('g')
         .leftJoin('g.users', 'u')
         .where('g.status = :status', { status: 'active' })
         .andWhere('g.createdAt <= :endDate', { endDate })
+        .andWhere('g.createdAt >= :startDate', { startDate })
         .select('g.id', 'id')
         .addSelect('g.price', 'price')
         .addSelect('COUNT(u.id)', 'studentCount')
@@ -119,8 +122,8 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
         .getRawMany();
 
       const expectedRevenue = groupCounts.reduce((acc, row) => {
-        const price = Number(row.price ?? row.g_price ?? 0);
-        const count = Number(row.studentCount ?? row.studentcount ?? 0);
+        const price = Number(row.price ?? 0);
+        const count = Number(row.studentCount ?? 0);
         return acc + price * count;
       }, 0);
 
@@ -128,7 +131,7 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
         .createQueryBuilder('payment')
         .select('SUM(payment.amount)', 'sum')
         .where('payment.paid = :paid', { paid: true })
-        .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .andWhere('payment.monthFor = :monthFor', { monthFor })
         .getRawOne();
 
       const totalPaid = Number(paidRes?.sum || 0);
