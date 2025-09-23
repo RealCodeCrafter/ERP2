@@ -405,7 +405,6 @@ async getAllStudents(filters: {
     payments: s.payments || [],
   }));
 
-  // filter by groupId
   if (groupId !== undefined) {
     filteredStudents = filteredStudents.filter(s =>
       s.groups.some(g => g && g.id === groupId),
@@ -413,7 +412,7 @@ async getAllStudents(filters: {
   }
 
   const studentsWithPayments = filteredStudents.map(s => {
-    // groups to include all details
+    
     const groupsList = s.groups.map(g => ({
       id: g.id,
       name: g.name,
@@ -426,7 +425,6 @@ async getAllStudents(filters: {
       dataDays: g.daysOfWeek || [],
     }));
 
-    // payments per group
     const paymentsList = s.groups.flatMap(group => {
       const groupPayments = s.payments.filter(
         p => p.group?.id === group.id && p.monthFor === monthQuery
@@ -467,7 +465,6 @@ async getAllStudents(filters: {
     };
   });
 
-  // filter by paid status if needed
   if (paid) {
     return studentsWithPayments.filter(s =>
       s.payments.some(p => (paid === 'true' ? p.paid : !p.paid))

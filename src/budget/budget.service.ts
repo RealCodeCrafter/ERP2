@@ -26,18 +26,19 @@ export class BudgetService {
   const startDate = new Date(currentYear, currentMonth - 1, 1);
   const endDate = new Date(currentYear, currentMonth, 0);
 
-  const activeGroups = await this.groupRepository.find({
-    where: {
-      status: 'active',
-      createdAt: LessThanOrEqual(endDate),
-    },
-    relations: ['users'],
-  });
+  const totalExpected = await this.groupRepository
+    .createQueryBuilder('group')
+    .select('SUM(group.price * COUNT(users.id))', 'sum')
+    .leftJoin('group.users', 'users')
+    .where('group.status = :status', { status: 'active' })
+    .andWhere('group.createdAt <= :endDate', { endDate })
+    .groupBy('group.id')
+    .getRawMany();
 
-  let expectedRevenue = 0;
-  activeGroups.forEach(group => {
-    expectedRevenue += (group.users.length || 0) * Number(group.price || 0);
-  });
+  let expectedRevenue = totalExpected.reduce(
+    (sum, row) => sum + Number(row.sum || 0),
+    0,
+  );
 
   const previousUnpaid = await this.calculatePreviousUnpaid(currentYear, currentMonth);
   expectedRevenue += previousUnpaid;
@@ -52,13 +53,13 @@ export class BudgetService {
   const totalPaid = Number(paidAmount.sum) || 0;
   expectedRevenue -= totalPaid;
 
-  const usersWithSalary = await this.userRepository.find({
+  const staff = await this.userRepository.find({
     where: { salary: Not(IsNull()) },
   });
 
-  const totalSalary = usersWithSalary.reduce(
+  const totalSalary = staff.reduce(
     (sum, user) => sum + Number(user.salary || 0),
-    0
+    0,
   );
 
   const netProfit = totalPaid - totalSalary;
@@ -68,9 +69,7 @@ export class BudgetService {
   try {
     const response = await axios.get('https://www.floatrates.com/daily/uzs.json');
     usdExchangeRate = response.data.usd.rate;
-  } catch (err) {
-    console.warn('USD kursini olishda xatolik, default kurs ishlatiladi.');
-  }
+  } catch {}
 
   const payments = await this.paymentRepository.find({
     where: { paid: true, createdAt: Between(startDate, endDate) },
@@ -96,52 +95,56 @@ export class BudgetService {
     totalSalaryUSD: `$${(totalSalary * usdExchangeRate).toFixed(2)}`,
     unpaidAmountUSD: `$${(unpaidAmount * usdExchangeRate).toFixed(2)}`,
     netProfitUSD: `$${(netProfit * usdExchangeRate).toFixed(2)}`,
+    staff: staff.map(u => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      role: u.role?.name,
+      salary: Number(u.salary),
+    })),
     paymentList,
   };
 }
 
-  private async calculatePreviousUnpaid(currentYear: number, currentMonth: number): Promise<number> {
-    let previousUnpaid = 0;
-    const startYear = 2020; 
-    const startMonth = 1;
+private async calculatePreviousUnpaid(currentYear: number, currentMonth: number): Promise<number> {
+  let previousUnpaid = 0;
+  const startYear = 2020;
+  const startMonth = 1;
 
-    for (let year = startYear; year <= currentYear; year++) {
-      const maxMonth = year === currentYear ? currentMonth - 1 : 12;
-      for (let month = startMonth; month <= maxMonth; month++) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0);
+  for (let year = startYear; year <= currentYear; year++) {
+    const maxMonth = year === currentYear ? currentMonth - 1 : 12;
+    for (let month = startMonth; month <= maxMonth; month++) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
 
+      const totalExpected = await this.groupRepository
+        .createQueryBuilder('group')
+        .select('SUM(group.price * COUNT(users.id))', 'sum')
+        .leftJoin('group.users', 'users')
+        .where('group.status = :status', { status: 'active' })
+        .andWhere('group.createdAt <= :endDate', { endDate })
+        .groupBy('group.id')
+        .getRawMany();
 
-        const activeGroups = await this.groupRepository.find({
-          where: {
-            status: 'active',
-            createdAt: LessThanOrEqual(endDate),
-          },
-          relations: ['users'],
-        });
+      let expectedRevenue = totalExpected.reduce(
+        (sum, row) => sum + Number(row.sum || 0),
+        0,
+      );
 
-        let expectedRevenue = 0;
-        activeGroups.forEach(group => {
-          expectedRevenue += (group.users.length || 0) * Number(group.price || 0);
-        });
+      const paidAmount = await this.paymentRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount)', 'sum')
+        .where('payment.paid = :paid', { paid: true })
+        .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .getRawOne();
 
-        const paidAmount = await this.paymentRepository
-          .createQueryBuilder('payment')
-          .select('SUM(payment.amount)', 'sum')
-          .where('payment.paid = :paid', { paid: true })
-          .andWhere('payment.createdAt BETWEEN :start AND :end', { start: startDate, end: endDate })
-          .getRawOne();
-
-        const totalPaid = Number(paidAmount.sum) || 0;
-
-        // O‘tgan oydagi to‘lanmagan summa (keyingi oyga qoldiq sifatida o‘tadi)
-        previousUnpaid += expectedRevenue - totalPaid;
-      }
+      const totalPaid = Number(paidAmount.sum) || 0;
+      previousUnpaid += expectedRevenue - totalPaid;
     }
-
-    return previousUnpaid;
-  
   }
+
+  return previousUnpaid;
+}
   async getPayments(firstName?: string, lastName?: string, groupId?: number): Promise<Payment[]> {
     const query: any = { paid: true };
     if (firstName) {
