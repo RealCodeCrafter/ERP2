@@ -415,87 +415,77 @@ export class GroupService {
   }
 
   async getTeacherCurrentMonthSchedules(teacherId: number): Promise<any> {
-    // Joriy sanani olish (2025-yil sentyabr)
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth() + 1; // 1-12 oralig‘i
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
 
-    // O‘qituvchining faol guruhlarini topish, attendances bilan
-    const groups = await this.groupRepository.find({
-      where: { user: { id: teacherId }, status: 'active' },
-      relations: ['course', 'user', 'users', 'users.role', 'attendances', 'attendances.user'],
-    });
+  const groups = await this.groupRepository.find({
+    where: { user: { id: teacherId }, status: 'active' },
+    relations: ['course', 'user', 'users', 'users.role', 'attendances', 'attendances.user'],
+  });
 
-    if (!groups.length) {
-      throw new NotFoundException('No groups found for this teacher');
+  if (!groups.length) {
+    throw new NotFoundException('No groups found for this teacher');
+  }
+
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const daysInCurrentMonth = daysInMonth[month - 1];
+
+  const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+  const endDate = `${year}-${month.toString().padStart(2, '0')}-${daysInCurrentMonth}`;
+
+  const results = groups.map(group => {
+    const lessonDates: number[] = [];
+    for (let day = 1; day <= daysInCurrentMonth; day++) {
+      const date = new Date(year, month - 1, day);
+      const dayOfWeek = date.toLocaleString('en-US', { weekday: 'long' });
+      if (group.daysOfWeek?.includes(dayOfWeek)) {
+        if (day === daysInCurrentMonth && group.endTime && group.endTime.startsWith('00:')) {
+          continue;
+        }
+        lessonDates.push(day);
+      }
     }
 
-    // Oy uzunligini hisoblash (kabisa yilini hisobga olib)
-    const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-    const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const daysInCurrentMonth = daysInMonth[month - 1];
+    const students = group.users
+      .filter(user => user.role?.name === 'student')
+      .map(user => {
+        const studentAttendances = group.attendances
+          .filter(att => att.user.id === user.id && att.date >= startDate && att.date <= endDate)
+          .map(att => ({
+            date: att.date,
+            status: att.status,
+            grade: att.grade,
+          }));
 
-    // Joriy oy uchun sana oralig‘i
-    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const endDate = `${year}-${month.toString().padStart(2, '0')}-${daysInCurrentMonth}`;
+        return {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          attendances: studentAttendances,
+        };
+      });
 
-    // Har bir guruh uchun dars sanalari va o‘quvchilarni hisoblash
-    const results = groups.map(group => {
-      const lessonDates: number[] = [];
-      for (let day = 1; day <= daysInCurrentMonth; day++) {
-        const date = new Date(year, month - 1, day);
-        const dayOfWeek = date.toLocaleString('en-US', { weekday: 'long' });
-        if (group.daysOfWeek?.includes(dayOfWeek)) {
-          // Agar endTime kechki soat 00:50 bo‘lsa va oy oxirgi kuni bo‘lsa, uni hisoblamaymiz
-          if (day === daysInCurrentMonth && group.endTime && group.endTime.startsWith('00:')) {
-            continue; // Oxirgi kun darsi keyingi oyga o‘tadi
-          }
-          lessonDates.push(day);
-        }
-      }
+    const groupDetails = {
+      id: group.id,
+      name: group.name,
+      teacher: group.user ? `${group.user.firstName} ${group.user.lastName}` : 'N/A',
+      course: group.course?.name || 'N/A',
+      startTime: group.startTime || 'N/A',
+      endTime: group.endTime || 'N/A',
+      daysOfWeek: group.daysOfWeek ? group.daysOfWeek.join(', ') : 'N/A',
+      createdAt: group.createdAt.toISOString().split('T')[0],
+      price: group.price,
+      totalLessons: lessonDates.length,
+      lessonDates,
+      students,
+    };
 
-      // Guruh ma'lumotlari
-      const groupDetails = {
-        id: group.id,
-        name: group.name,
-        teacher: group.user ? `${group.user.firstName} ${group.user.lastName}` : 'N/A',
-        course: group.course?.name || 'N/A',
-        startTime: group.startTime || 'N/A',
-        endTime: group.endTime || 'N/A',
-        daysOfWeek: group.daysOfWeek ? group.daysOfWeek.join(', ') : 'N/A',
-        createdAt: group.createdAt.toISOString().split('T')[0],
-        price: group.price,
-      };
+    return groupDetails;
+  });
 
-      // O‘quvchilar ro‘yxati va ularning yo‘qlama ma'lumotlari
-      const students = group.users
-        .filter(user => user.role?.name === 'student')
-        .map(user => {
-          // Ushbu o‘quvchi uchun joriy oydagi yo‘qlamalarni filtrlash
-          const studentAttendances = group.attendances
-            .filter(att => att.user.id === user.id && att.date >= startDate && att.date <= endDate)
-            .map(att => ({
-              date: att.date,
-              status: att.status,
-              grade: att.grade,
-            }));
+  return results;
+}
 
-          return {
-            id: user.id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            attendances: studentAttendances,
-          };
-        });
-
-      return {
-        groupDetails,
-        totalLessons: lessonDates.length,
-        lessonDates,
-        students,
-      };
-    });
-
-    return results;
-  }
 }
