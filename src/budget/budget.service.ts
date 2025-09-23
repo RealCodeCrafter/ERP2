@@ -39,6 +39,8 @@ export class BudgetService {
     .addGroupBy('g.price')
     .getRawMany();
 
+  console.log('Group Counts:', groupCounts);
+
   let expectedRevenue = groupCounts.reduce((acc, row) => {
     const price = Number(row.price ?? 0);
     const count = Number(row.studentCount ?? 0);
@@ -121,6 +123,8 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
         .addGroupBy('g.price')
         .getRawMany();
 
+      console.log(`Previous Unpaid Group Counts for ${monthFor}:`, groupCounts);
+
       const expectedRevenue = groupCounts.reduce((acc, row) => {
         const price = Number(row.price ?? 0);
         const count = Number(row.studentCount ?? 0);
@@ -141,7 +145,6 @@ private async calculatePreviousUnpaid(currentYear: number, currentMonth: number)
 
   return previousUnpaid;
 }
-
   async getPayments(firstName?: string, lastName?: string, groupId?: number): Promise<Payment[]> {
     const query: any = { paid: true };
     if (firstName) {
