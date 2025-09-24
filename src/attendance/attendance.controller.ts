@@ -10,12 +10,13 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Roles('teacher')
-  @UseGuards(AuthGuard)
-  @Post()
-  create(@Req() req, @Body() createAttendanceDto: CreateAttendanceDto) {
-    const teacherId = req.user.id;
-    return this.attendanceService.create(createAttendanceDto, teacherId);
-  }
+@UseGuards(AuthGuard)
+@Post()
+createOrUpdate(@Req() req, @Body() createAttendanceDto: CreateAttendanceDto) {
+  const teacherId = req.user.id;
+  return this.attendanceService.createOrUpdate(createAttendanceDto, teacherId);
+}
+
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)
