@@ -41,6 +41,23 @@ export class AttendanceController {
     return this.attendanceService.getAttendanceStatistics(groupId);
   }
 
+  // @Roles('admin', 'superAdmin', 'teacher')
+  // @UseGuards(AuthGuard)
+  // @Get('search/daily-stats')
+  // async getDailyAttendanceStats(
+  //   @Query('groupId') groupId?: string,
+  //   @Query('date') date?: string,
+  //   @Query('period') period?: 'daily' | 'weekly' | 'monthly',
+  //   @Query('studentName') studentName?: string,
+  // ) {
+  //   return this.attendanceService.getDailyAttendanceStats(
+  //     groupId ? parseInt(groupId, 10) : undefined,
+  //     date,
+  //     period,
+  //     studentName,
+  //   );
+  // }
+
   @Roles('teacher', 'admin', 'superAdmin')
   @UseGuards(AuthGuard)
   @Get('group/:groupId')

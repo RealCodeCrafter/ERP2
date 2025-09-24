@@ -2,7 +2,7 @@ import { IsNotEmpty, IsEnum, IsNumber, IsArray, ValidateNested, IsOptional, Min,
 import { Type } from 'class-transformer';
 import { AttendanceStatus } from './create-attendance.dto';
 
-export class SingleAttendanceUpdateDto {
+export class SingleAttendanceUpdateDto{
   @IsNotEmpty()
   @IsNumber()
   @Type(() => Number)

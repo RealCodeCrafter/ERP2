@@ -6,7 +6,6 @@ export enum AttendanceStatus {
   ABSENT = 'absent',
   LATE = 'late',
 }
-
 export class SingleAttendanceCreateDto {
   @IsNotEmpty()
   @IsNumber()

@@ -69,10 +69,6 @@ export class AttendanceService {
         throw new NotFoundException(`Student with ID ${attendanceDto.studentId} not found`);
       }
 
-      if (attendanceDto.grade && (attendanceDto.grade < 0 || attendanceDto.grade > 100)) {
-        throw new BadRequestException(`Invalid grade for student ID ${attendanceDto.studentId}, must be between 0 and 100`);
-      }
-
       const existingAttendance = await this.attendanceRepository.findOne({
         where: {
           user: { id: attendanceDto.studentId },
@@ -80,25 +76,27 @@ export class AttendanceService {
           date: targetDate.format('YYYY-MM-DD'),
         },
       });
-
       if (existingAttendance) {
-        existingAttendance.status = attendanceDto.status || 'present';
-        existingAttendance.grade = attendanceDto.grade || null;
-        existingAttendance.teacher = teacher;
-        const updatedAttendance = await this.attendanceRepository.save(existingAttendance);
-        results.push(updatedAttendance);
-      } else {
-        const attendance = this.attendanceRepository.create({
-          user: student,
-          group,
-          date: targetDate.format('YYYY-MM-DD'),
-          status: attendanceDto.status || 'present',
-          grade: attendanceDto.grade || null,
-          teacher,
-        });
-        const savedAttendance = await this.attendanceRepository.save(attendance);
-        results.push(savedAttendance);
+        throw new ForbiddenException(
+          `Attendance for student ${attendanceDto.studentId} on ${targetDate.format('YYYY-MM-DD')} already exists`,
+        );
       }
+
+      if (attendanceDto.grade && (attendanceDto.grade < 0 || attendanceDto.grade > 100)) {
+        throw new BadRequestException(`Invalid grade for student ID ${attendanceDto.studentId}, must be between 0 and 100`);
+      }
+
+      const attendance = this.attendanceRepository.create({
+        user: student,
+        group,
+        date: targetDate.format('YYYY-MM-DD'),
+        status: attendanceDto.status || 'present',
+        grade: attendanceDto.grade || null,
+        teacher,
+      });
+
+      const savedAttendance = await this.attendanceRepository.save(attendance);
+      results.push(savedAttendance);
     }
 
     return results;
