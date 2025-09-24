@@ -24,61 +24,65 @@ export class ApplicationService {
     private readonly courseRepository: Repository<Course>,
   ) {}
 
-async create(createApplicationDto: CreateApplicationDto): Promise<Application> {
-  const { firstName, lastName, phone, groupId, courseId } = createApplicationDto;
+  async create(createApplicationDto: CreateApplicationDto): Promise<Application> {
+    const { firstName, lastName, phone, groupId, courseId } = createApplicationDto;
 
-  const application = this.applicationRepository.create({ firstName, lastName, phone });
+    const application = this.applicationRepository.create({ 
+      firstName, 
+      lastName, 
+      phone,
+      isContacted: false 
+    });
 
-  let user: User = null;
+    let user: User = null;
 
-  if (groupId || courseId) {
-    let group = null;
-    let course = null;
+    if (groupId || courseId) {
+      let group = null;
+      let course = null;
 
-    if (groupId) {
-      group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
-      if (!group) throw new NotFoundException(`Group with ID ${groupId} not found`);
-    }
-
-    if (courseId) {
-      course = await this.courseRepository.findOne({ where: { id: courseId } });
-      if (!course) throw new NotFoundException(`Course with ID ${courseId} not found`);
-    }
-
-    const role = await this.roleRepository.findOne({ where: { name: 'student' } });
-    if (!role) throw new NotFoundException(`Role 'student' not found`);
-
-    user = await this.userRepository.findOne({ where: { phone } });
-
-    if (!user) {
-      user = this.userRepository.create({
-        firstName,
-        lastName,
-        phone,
-        role,
-        groups: group ? [group] : [],
-        course: course || null,
-      });
-      await this.userRepository.save(user);
-    } else {
-      if (!user.groups) user.groups = [];
-      if (group && !user.groups.some(g => g.id === group.id)) {
-        user.groups.push(group);
+      if (groupId) {
+        group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
+        if (!group) throw new NotFoundException(`Group with ID ${groupId} not found`);
       }
-      if (course) user.course = course;
-      await this.userRepository.save(user);
+
+      if (courseId) {
+        course = await this.courseRepository.findOne({ where: { id: courseId } });
+        if (!course) throw new NotFoundException(`Course with ID ${courseId} not found`);
+      }
+
+      const role = await this.roleRepository.findOne({ where: { name: 'student' } });
+      if (!role) throw new NotFoundException(`Role 'student' not found`);
+
+      user = await this.userRepository.findOne({ where: { phone } });
+
+      if (!user) {
+        user = this.userRepository.create({
+          firstName,
+          lastName,
+          phone,
+          role,
+          groups: group ? [group] : [],
+          course: course || null,
+        });
+        await this.userRepository.save(user);
+      } else {
+        if (!user.groups) user.groups = [];
+        if (group && !user.groups.some(g => g.id === group.id)) {
+          user.groups.push(group);
+        }
+        if (course) user.course = course;
+        await this.userRepository.save(user);
+      }
+
+      application.user = user;
+      application.group = group || null;
+      application.status = true;
+    } else {
+      application.status = false;
     }
 
-    application.user = user;
-    application.group = group || null;
-    application.status = true;
-  } else {
-    application.status = false;
+    return this.applicationRepository.save(application);
   }
-
-  return this.applicationRepository.save(application);
-}
-
 
   async findAll(firstName?: string, lastName?: string, phone?: string): Promise<any> {
     const query: any = {};
@@ -115,6 +119,7 @@ async create(createApplicationDto: CreateApplicationDto): Promise<Application> {
         phone: app.phone,
         createdAt: app.createdAt,
         status: app.status,
+        isContacted: app.isContacted,
         group: app.group ? app.group.name : null,
       })),
     };
@@ -144,42 +149,48 @@ async create(createApplicationDto: CreateApplicationDto): Promise<Application> {
   }
 
   async assignGroup(id: number, groupId: number): Promise<Application> {
-  const application = await this.findOne(id);
+    const application = await this.findOne(id);
 
-  const group = await this.groupRepository.findOne({ 
-    where: { id: groupId, status: 'active' }, 
-    relations: ['course']
-  });
+    const group = await this.groupRepository.findOne({ 
+      where: { id: groupId, status: 'active' }, 
+      relations: ['course']
+    });
 
-  if (!group) {
-    throw new NotFoundException(`Active group with ID ${groupId} not found`);
+    if (!group) {
+      throw new NotFoundException(`Active group with ID ${groupId} not found`);
+    }
+
+    const role = await this.roleRepository.findOne({ where: { name: 'student' } });
+    if (!role) {
+      throw new NotFoundException(`Role 'student' not found`);
+    }
+
+    const user = this.userRepository.create({
+      firstName: application.firstName,
+      lastName: application.lastName,
+      phone: application.phone,
+      role: role,
+      groups: [group],   
+    });
+
+    await this.userRepository.save(user);
+
+    application.user = user;
+    application.group = group;
+    application.status = true;
+
+    return this.applicationRepository.save(application);
   }
-
-  const role = await this.roleRepository.findOne({ where: { name: 'student' } });
-  if (!role) {
-    throw new NotFoundException(`Role 'student' not found`);
-  }
-
-  const user = this.userRepository.create({
-    firstName: application.firstName,
-    lastName: application.lastName,
-    phone: application.phone,
-    role: role,
-    groups: [group],   
-  });
-
-  await this.userRepository.save(user);
-
-  application.user = user;
-  application.group = group;
-  application.status = true;
-
-  return this.applicationRepository.save(application);
-}
 
   async removeGroup(id: number): Promise<Application> {
     const application = await this.findOne(id);
     application.group = null;
+    return this.applicationRepository.save(application);
+  }
+
+  async markContacted(id: number): Promise<Application> {
+    const application = await this.findOne(id);
+    application.isContacted = true;
     return this.applicationRepository.save(application);
   }
 }

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } f
 import { ApplicationService } from './application.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application';
-import { AuthGuard} from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from 'src/auth/roles.decorator';
 
 @Controller('applications')
@@ -54,5 +54,12 @@ export class ApplicationController {
   @Patch(':id/remove-group')
   removeGroup(@Param('id') id: string) {
     return this.applicationService.removeGroup(+id);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard)
+  @Patch(':id/mark-contacted')
+  markContacted(@Param('id') id: string) {
+    return this.applicationService.markContacted(+id);
   }
 }

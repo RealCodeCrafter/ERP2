@@ -20,6 +20,9 @@ export class Application {
   @Column({ type: 'boolean', default: false })
   status: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isContacted: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -30,5 +33,5 @@ export class Application {
   group: Group;
 
   @ManyToOne(() => Course, (course) => course.applications, { nullable: true, onDelete: 'CASCADE' })
-course: Course;
+  course: Course;
 }

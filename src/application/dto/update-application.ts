@@ -16,4 +16,8 @@ export class UpdateApplicationDto {
   @IsOptional()
   @IsBoolean()
   status?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isContacted?: boolean;
 }
