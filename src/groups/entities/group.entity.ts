@@ -35,7 +35,7 @@ export class Group {
   @ManyToOne(() => Course, (course) => course.groups, { onDelete: 'CASCADE' })
   course: Course;
 
-  @ManyToOne(() => User, (user) => user.groups, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => User, (user) => user.groupsAsTeacher, { onDelete: 'SET NULL', nullable: true })
   user: User;
 
   @ManyToMany(() => User, (user) => user.groups, {

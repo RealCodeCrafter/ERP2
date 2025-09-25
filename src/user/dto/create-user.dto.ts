@@ -5,14 +5,17 @@ export class CreateUserDto {
   @IsString()
   role?: string;
 
+  @IsOptional()
   @IsString()
-  firstName: string; 
+  firstName?: string; 
 
+  @IsOptional()
   @IsString()
-  lastName: string; 
+  lastName?: string; 
 
+  @IsOptional()
   @IsPhoneNumber()
-  phone: string; 
+  phone?: string; 
 
   @IsOptional()
   @IsString()
@@ -33,6 +36,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   salary?: number;
+
+  @IsOptional()
+  @IsNumber()
+  percent?: number;
 
   @IsOptional()
   @IsNumber()

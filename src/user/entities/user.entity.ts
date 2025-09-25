@@ -35,6 +35,9 @@ export class User {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   salary: number;
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  percent: number;
+
   @ManyToOne(() => Role, { onDelete: 'SET NULL', nullable: true })
   role: Role;
 

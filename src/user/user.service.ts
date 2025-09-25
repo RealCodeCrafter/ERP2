@@ -10,7 +10,6 @@ import { Course } from '../courses/entities/course.entity';
 import { Payment } from '../budget/entities/payment.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import * as bcrypt from 'bcrypt';
-import axios from 'axios';
 
 @Injectable()
 export class UserService {
@@ -40,21 +39,12 @@ export class UserService {
       password,
       specialty,
       salary,
+      percent,
       courseId,
       groupId,
     } = createUserDto;
 
-    if (!role) {
-      role = 'student';
-    }
-
-    if (role === 'student') {
-      if (!firstName || !lastName || !phone || !courseId || !groupId) {
-        throw new NotFoundException(
-          'firstName, lastName, phone, courseId, and groupId are required for students',
-        );
-      }
-    }
+    if (!role) role = 'student';
 
     const roleEntity = await this.roleRepository.findOne({ where: { name: role } });
     if (!roleEntity) {
@@ -89,6 +79,13 @@ export class UserService {
 
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
+    if (role === 'teacher') {
+      if (percent === undefined || percent === null) {
+        throw new NotFoundException('percent is required for teacher');
+      }
+      salary = null;
+    }
+
     const user = this.userRepository.create({
       firstName,
       lastName,
@@ -98,12 +95,22 @@ export class UserService {
       password: hashedPassword,
       role: roleEntity,
       specialty: specialty || null,
-      salary: salary || null,
+      salary: salary ?? null,
+      percent: percent ?? null,
       course: courseEntity || null,
       groups: groupEntity ? [groupEntity] : [], // Assign group for students
     });
 
-    return this.userRepository.save(user);
+    await this.userRepository.save(user);
+
+    const fresh = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: ['groups', 'groups.course', 'role', 'groupsAsTeacher', 'groupsAsTeacher.users', 'groupsAsTeacher.course'],
+    });
+    return {
+      ...fresh,
+      salary: fresh.role?.name === 'teacher' ? this.calculateTeacherSalary(fresh) : fresh.salary ?? null,
+    } as any;
   }
 
   async getDashboard(): Promise<any> {
@@ -144,13 +151,7 @@ export class UserService {
     return { month, income };
   });
 
-  let usdExchangeRate = 0.000079;
-  try {
-    const response = await axios.get('https://www.floatrates.com/daily/uzs.json');
-    usdExchangeRate = response.data.usd.rate || usdExchangeRate;
-  } catch (error) {
-    console.error('Valyuta kursi xatosi:', error);
-  }
+  const usdExchangeRate = 0.000079;
 
   const annualRevenueUSD = (annualRevenue * usdExchangeRate).toFixed(2);
 
@@ -197,7 +198,7 @@ export class UserService {
   };
 }
 
-  async findAll(role?: string, firstName?: string, lastName?: string, phone?: string): Promise<User[]> {
+  async findAll(role?: string, firstName?: string, lastName?: string, phone?: string): Promise<any[]> {
     const query: any = {};
     if (role) {
       query.role = { name: role };
@@ -212,21 +213,29 @@ export class UserService {
       query.phone = ILike(`%${phone}%`);
     }
 
-    return this.userRepository.find({
+    const users = await this.userRepository.find({
       where: query,
-      relations: ['groups', 'groups.course', 'role'],
+      relations: ['groups', 'groups.course', 'role', 'groupsAsTeacher', 'groupsAsTeacher.users', 'groupsAsTeacher.course'],
     });
+
+    return users.map(u => ({
+      ...u,
+      salary: u.role?.name === 'teacher' ? this.calculateTeacherSalary(u) : u.salary ?? null,
+    }));
   }
 
-  async findOne(id: number): Promise<User> {
+  async findOne(id: number): Promise<any> {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['groups', 'groups.course', 'role'],
+      relations: ['groups', 'groups.course', 'role', 'groupsAsTeacher', 'groupsAsTeacher.users', 'groupsAsTeacher.course'],
     });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    return user;
+    return {
+      ...user,
+      salary: user.role?.name === 'teacher' ? this.calculateTeacherSalary(user) : user.salary ?? null,
+    };
   }
 
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
@@ -258,7 +267,8 @@ export class UserService {
       address: updateUserDto.address ?? user.address,
       username: updateUserDto.username ?? user.username,
       specialty: updateUserDto.specialty ?? user.specialty,
-      salary: updateUserDto.salary ?? user.salary,
+      salary: user.role?.name === 'teacher' ? null : (updateUserDto.salary ?? user.salary),
+      percent: updateUserDto.percent ?? user.percent,
     });
 
     return this.userRepository.save(user);
@@ -307,10 +317,20 @@ export class UserService {
     address: updateUserDto.address ?? user.address,
     username: updateUserDto.username ?? user.username,
     specialty: updateUserDto.specialty ?? user.specialty,
-    salary: updateUserDto.salary ?? user.salary,
+    salary: user.role?.name === 'teacher' ? null : (updateUserDto.salary ?? user.salary),
+    percent: updateUserDto.percent ?? user.percent,
   });
 
-  return this.userRepository.save(user);
+  await this.userRepository.save(user);
+
+  const fresh = await this.userRepository.findOne({
+    where: { id: user.id },
+    relations: ['groups', 'groups.course', 'role', 'groupsAsTeacher', 'groupsAsTeacher.users', 'groupsAsTeacher.course'],
+  });
+  return {
+    ...fresh,
+    salary: fresh.role?.name === 'teacher' ? this.calculateTeacherSalary(fresh) : fresh.salary ?? null,
+  } as any;
 }
 
 
@@ -481,7 +501,8 @@ async getWorkers(): Promise<any> {
       .leftJoinAndSelect('user.groupsAsTeacher', 'groupsAsTeacher') 
       .leftJoinAndSelect('groups.course', 'course')
       .leftJoinAndSelect('groupsAsTeacher.course', 'teacherCourse')
-      .where('user.salary IS NOT NULL')
+      .leftJoinAndSelect('groupsAsTeacher.users', 'teacherGroupUsers')
+      .where('role.name != :student AND role.name != :superAdmin', { student: 'student', superAdmin: 'superAdmin' })
       .getMany();
 
     return workers.map(worker => {
@@ -510,12 +531,25 @@ async getWorkers(): Promise<any> {
         phone: worker.phone || null,
         address: worker.address || null,
         specialty: worker.specialty || null,
-        salary: worker.salary || null,
+        salary: worker.role?.name === 'teacher' ? this.calculateTeacherSalary(worker) : (worker.salary || null),
         role: worker.role?.name || null,
         groups: groupNames.length ? groupNames : [],
         courses: courses.length ? courses : null,
       };
     });
+  }
+
+  private calculateTeacherSalary(user: User): number {
+    if (!user || user.role?.name !== 'teacher') return Number(user?.salary ?? 0);
+    const percent = Number(user.percent ?? 0);
+    const groups = user.groupsAsTeacher || [];
+    const activeGroups = groups.filter(g => g?.status === 'active');
+    const totalRevenue = activeGroups.reduce((sum, g) => {
+      const price = Number(g?.price ?? 0);
+      const studentCount = Number((g as any)?.usersCount ?? (g?.users || []).length);
+      return sum + price * studentCount;
+    }, 0);
+    return Number(((totalRevenue * percent) / 100).toFixed(2));
   }
 
 }

@@ -71,13 +71,15 @@ export class GroupService {
       daysOfWeek,
       price,
     });
-    return this.groupRepository.save(group);
+    const saved = await this.groupRepository.save(group);
+    const teacherSalary = teacher ? await this.computeTeacherSalary(teacher.id) : null;
+    return Object.assign(saved, { teacherSalary }) as any;
   }
 
-  async addStudentToGroup(groupId: number, userId: number): Promise<Group> {
+  async addStudentToGroup(groupId: number, userId: number): Promise<any> {
     const group = await this.groupRepository.findOne({
       where: { id: groupId, status: 'active' },
-      relations: ['users'],
+      relations: ['users', 'user'],
     });
     if (!group) throw new NotFoundException('Active group not found');
 
@@ -92,13 +94,17 @@ export class GroupService {
     }
 
     group.users.push(user);
-    return this.groupRepository.save(group);
+    const saved = await this.groupRepository.save(group);
+    const fresh = await this.groupRepository.findOne({ where: { id: saved.id }, relations: ['user', 'users'] });
+    const teacherId = fresh?.user?.id;
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    return Object.assign(fresh || saved, { teacherSalary });
   }
 
-  async restoreStudentToGroup(groupId: number, userId: number): Promise<Group> {
+  async restoreStudentToGroup(groupId: number, userId: number): Promise<any> {
     const group = await this.groupRepository.findOne({
       where: { id: groupId, status: 'active' },
-      relations: ['users'],
+      relations: ['users', 'user'],
     });
     if (!group) throw new NotFoundException('Active group not found');
 
@@ -113,14 +119,18 @@ export class GroupService {
     }
 
     group.users.push(user);
-    return this.groupRepository.save(group);
+    const saved = await this.groupRepository.save(group);
+    const fresh = await this.groupRepository.findOne({ where: { id: saved.id }, relations: ['user', 'users'] });
+    const teacherId = fresh?.user?.id;
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    return Object.assign(fresh || saved, { teacherSalary });
   }
 
   async transferStudentToGroup(
     fromGroupId: number,
     toGroupId: number,
     userId: number,
-  ): Promise<Group> {
+  ): Promise<any> {
     if (fromGroupId === toGroupId) {
       throw new BadRequestException('Source and target groups are the same');
     }
@@ -145,7 +155,19 @@ export class GroupService {
     await this.groupRepository.save(fromGroup);
 
     toGroup.users.push(user);
-    return this.groupRepository.save(toGroup);
+    const savedTo = await this.groupRepository.save(toGroup);
+
+    const fromTeacherId = fromGroup.user?.id;
+    const toTeacherId = savedTo.user?.id;
+    const fromTeacherSalary = fromTeacherId ? await this.computeTeacherSalary(fromTeacherId) : null;
+    const toTeacherSalary = toTeacherId ? await this.computeTeacherSalary(toTeacherId) : null;
+
+    return {
+      fromGroup,
+      toGroup: savedTo,
+      fromTeacherSalary,
+      toTeacherSalary,
+    };
   }
 
   async getGroupById(id: number): Promise<Group> {
@@ -316,22 +338,25 @@ export class GroupService {
   }
 
   async updateStatus(id: number, status: 'active' | 'completed' | 'planned') {
-    const group = await this.groupRepository.findOne({ where: { id } });
+    const group = await this.groupRepository.findOne({ where: { id }, relations: ['user'] });
     if (!group) throw new NotFoundException('Group not found');
     if (!['active', 'completed', 'planned'].includes(status)) {
       throw new BadRequestException('Invalid status. Must be one of: active, completed, planned');
     }
     group.status = status;
-    return this.groupRepository.save(group);
+    const saved = await this.groupRepository.save(group);
+    const teacherId = saved.user?.id;
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    return Object.assign(saved, { teacherSalary });
   }
 
   async removeStudentFromGroup(
     groupId: number,
     userId: number,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; teacherSalary: number | null }> {
     const group = await this.groupRepository.findOne({
       where: { id: groupId },
-      relations: ['users', 'users.role'],
+      relations: ['users', 'users.role', 'user'],
     });
     if (!group) throw new NotFoundException('Group not found');
 
@@ -344,11 +369,14 @@ export class GroupService {
 
     group.users = group.users.filter((u) => u.id !== userId);
     await this.groupRepository.save(group);
+    const fresh = await this.groupRepository.findOne({ where: { id: group.id }, relations: ['user', 'users'] });
+    const teacherId = fresh?.user?.id;
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
 
-    return { message: 'Student removed from group successfully' };
+    return { message: 'Student removed from group successfully', teacherSalary };
   }
 
-  async update(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
+  async update(id: number, updateGroupDto: UpdateGroupDto): Promise<any> {
     const group = await this.getGroupById(id);
 
     if (updateGroupDto.name) group.name = updateGroupDto.name;
@@ -388,18 +416,21 @@ export class GroupService {
       group.users = users;
     }
 
-    return this.groupRepository.save(group);
+    const saved = await this.groupRepository.save(group);
+    const teacherId = saved.user?.id;
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    return Object.assign(saved, { teacherSalary });
   }
 
-  async delete(id: number): Promise<{ message: string }> {
-    const group = await this.groupRepository.findOne({ where: { id } });
+  async delete(id: number): Promise<{ message: string; teacherSalary: number | null }> {
+    const group = await this.groupRepository.findOne({ where: { id }, relations: ['user'] });
     if (!group) {
       throw new NotFoundException(`Group with id ${id} does not exist`);
     }
-
+    const teacherId = group.user?.id;
     await this.groupRepository.remove(group);
-
-    return { message: `Group with id ${id} has been successfully deleted` };
+    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    return { message: `Group with id ${id} has been successfully deleted`, teacherSalary };
   }
 
   async getGroupsByCourseId(courseId: number): Promise<Group[]> {
@@ -488,4 +519,27 @@ export class GroupService {
   return results;
 }
 
+
+
+  private async computeTeacherSalary(teacherId: number): Promise<number> {
+    const teacher = await this.userRepository.findOne({ where: { id: teacherId }, relations: ['role'] });
+    if (!teacher || teacher.role?.name !== 'teacher') return Number(teacher?.salary ?? 0);
+    const percent = Number(teacher.percent ?? 0);
+    if (percent <= 0) return 0;
+
+    const rows = await this.groupRepository
+      .createQueryBuilder('g')
+      .leftJoin('g.users', 'u')
+      .where('g.userId = :teacherId', { teacherId })
+      .andWhere('g.status = :status', { status: 'active' })
+      .select('g.id', 'id')
+      .addSelect('g.price', 'price')
+      .addSelect('COUNT(u.id)', 'studentCount')
+      .groupBy('g.id')
+      .addGroupBy('g.price')
+      .getRawMany();
+
+    const totalRevenue = rows.reduce((sum, r) => sum + Number(r.price ?? 0) * Number(r.studentcount ?? r.studentCount ?? 0), 0);
+    return Number(((totalRevenue * percent) / 100).toFixed(2));
+  }
 }

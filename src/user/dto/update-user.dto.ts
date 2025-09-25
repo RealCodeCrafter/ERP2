@@ -32,4 +32,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsNumber()
   salary?: number;
+
+  @IsOptional()
+  @IsNumber()
+  percent?: number;
 }
