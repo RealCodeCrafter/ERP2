@@ -73,6 +73,9 @@ export class GroupService {
     });
     const saved = await this.groupRepository.save(group);
     const teacherSalary = teacher ? await this.computeTeacherSalary(teacher.id) : null;
+    if (teacher && teacherSalary !== null) {
+      await this.userRepository.update(teacher.id, { salary: teacherSalary });
+    }
     return Object.assign(saved, { teacherSalary }) as any;
   }
 
@@ -98,6 +101,9 @@ export class GroupService {
     const fresh = await this.groupRepository.findOne({ where: { id: saved.id }, relations: ['user', 'users'] });
     const teacherId = fresh?.user?.id;
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
     return Object.assign(fresh || saved, { teacherSalary });
   }
 
@@ -123,6 +129,9 @@ export class GroupService {
     const fresh = await this.groupRepository.findOne({ where: { id: saved.id }, relations: ['user', 'users'] });
     const teacherId = fresh?.user?.id;
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
     return Object.assign(fresh || saved, { teacherSalary });
   }
 
@@ -161,6 +170,12 @@ export class GroupService {
     const toTeacherId = savedTo.user?.id;
     const fromTeacherSalary = fromTeacherId ? await this.computeTeacherSalary(fromTeacherId) : null;
     const toTeacherSalary = toTeacherId ? await this.computeTeacherSalary(toTeacherId) : null;
+    if (fromTeacherId && fromTeacherSalary !== null) {
+      await this.userRepository.update(fromTeacherId, { salary: fromTeacherSalary });
+    }
+    if (toTeacherId && toTeacherSalary !== null) {
+      await this.userRepository.update(toTeacherId, { salary: toTeacherSalary });
+    }
 
     return {
       fromGroup,
@@ -347,6 +362,9 @@ export class GroupService {
     const saved = await this.groupRepository.save(group);
     const teacherId = saved.user?.id;
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
     return Object.assign(saved, { teacherSalary });
   }
 
@@ -372,12 +390,16 @@ export class GroupService {
     const fresh = await this.groupRepository.findOne({ where: { id: group.id }, relations: ['user', 'users'] });
     const teacherId = fresh?.user?.id;
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
 
     return { message: 'Student removed from group successfully', teacherSalary };
   }
 
   async update(id: number, updateGroupDto: UpdateGroupDto): Promise<any> {
     const group = await this.getGroupById(id);
+    const oldTeacherId = group.user?.id;
 
     if (updateGroupDto.name) group.name = updateGroupDto.name;
     if (updateGroupDto.price !== undefined) group.price = updateGroupDto.price;
@@ -419,6 +441,13 @@ export class GroupService {
     const saved = await this.groupRepository.save(group);
     const teacherId = saved.user?.id;
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
+    if (oldTeacherId && oldTeacherId !== teacherId) {
+      const oldSalary = await this.computeTeacherSalary(oldTeacherId);
+      await this.userRepository.update(oldTeacherId, { salary: oldSalary });
+    }
     return Object.assign(saved, { teacherSalary });
   }
 
@@ -430,6 +459,9 @@ export class GroupService {
     const teacherId = group.user?.id;
     await this.groupRepository.remove(group);
     const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+    if (teacherId && teacherSalary !== null) {
+      await this.userRepository.update(teacherId, { salary: teacherSalary });
+    }
     return { message: `Group with id ${id} has been successfully deleted`, teacherSalary };
   }
 
