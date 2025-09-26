@@ -76,30 +76,42 @@ export class GroupService {
     return Object.assign(saved, { teacherSalary }) as any;
   }
 
-  async addStudentToGroup(groupId: number, userId: number): Promise<any> {
-    const group = await this.groupRepository.findOne({
-      where: { id: groupId, status: 'active' },
-      relations: ['users', 'user'],
-    });
-    if (!group) throw new NotFoundException('Active group not found');
+  async addUserToGroup(groupId: number, userId: number): Promise<any> {
+  const group = await this.groupRepository.findOne({
+    where: { id: groupId, status: 'active' },
+    relations: ['users', 'user'], // users -> students, user -> teacher
+  });
+  if (!group) throw new NotFoundException('Active group not found');
 
-    const user = await this.userRepository.findOne({
-      where: { id: userId, role: { name: 'student' } },
-      relations: ['role'],
-    });
-    if (!user) throw new NotFoundException('Student not found');
+  const user = await this.userRepository.findOne({
+    where: { id: userId },
+    relations: ['role'],
+  });
+  if (!user) throw new NotFoundException('User not found');
 
+  if (user.role.name === 'student') {
     if (group.users.some((s) => s.id === userId)) {
       throw new BadRequestException('Student already in group');
     }
-
     group.users.push(user);
-    const saved = await this.groupRepository.save(group);
-    const fresh = await this.groupRepository.findOne({ where: { id: saved.id }, relations: ['user', 'users'] });
-    const teacherId = fresh?.user?.id;
-    const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
-    return Object.assign(fresh || saved, { teacherSalary });
+  } else if (user.role.name === 'teacher') {
+    group.user = user;
+  } else {
+    throw new BadRequestException('Only student or teacher can be added to group');
   }
+
+  const saved = await this.groupRepository.save(group);
+  const fresh = await this.groupRepository.findOne({
+    where: { id: saved.id },
+    relations: ['user', 'users'],
+  });
+
+  const teacherId = fresh?.user?.id;
+  const teacherSalary = teacherId ? await this.computeTeacherSalary(teacherId) : null;
+
+  return Object.assign(fresh || saved, { teacherSalary });
+}
+
 
   async restoreStudentToGroup(groupId: number, userId: number): Promise<any> {
     const group = await this.groupRepository.findOne({
