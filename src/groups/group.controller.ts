@@ -32,7 +32,7 @@ export class GroupController {
     @Param('id', ParseIntPipe) id: number,
     @Query('userId', ParseIntPipe) userId: number,
   ) {
-    return this.groupService.addUserToGroup(id, userId);
+    return this.groupService.addStudentToGroup(id, userId);
   }
 
   @Roles('student', 'superAdmin', 'admin')
