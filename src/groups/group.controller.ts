@@ -115,9 +115,15 @@ export class GroupController {
   @Roles('teacher')
   @UseGuards(AuthGuard)
   @Get('my/schedule')
-  async getTeacherCurrentMonthSchedules(@Req() req: any) {
+  async getTeacherCurrentMonthSchedules(
+    @Req() req: any,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
     const teacherId = req.user.id;
-    return this.groupService.getTeacherCurrentMonthSchedules(teacherId);
+    const monthNum = month && !isNaN(Number(month)) ? Number(month) : undefined;
+    const yearNum = year && !isNaN(Number(year)) ? Number(year) : undefined;
+    return this.groupService.getTeacherCurrentMonthSchedules(teacherId, monthNum, yearNum);
   }
 
   @Roles('admin', 'superAdmin')

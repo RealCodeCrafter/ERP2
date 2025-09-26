@@ -477,10 +477,10 @@ export class GroupService {
     return group.users.filter((u) => u.role?.name === 'student');
   }
 
-  async getTeacherCurrentMonthSchedules(teacherId: number): Promise<any> {
+  async getTeacherCurrentMonthSchedules(teacherId: number, month?: number, year?: number): Promise<any> {
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
+  const yearVal = year || today.getFullYear();
+  const monthVal = month || (today.getMonth() + 1);
 
   const groups = await this.groupRepository.find({
     where: { user: { id: teacherId }, status: 'active' },
@@ -491,17 +491,17 @@ export class GroupService {
     throw new NotFoundException('No groups found for this teacher');
   }
 
-  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const isLeapYear = (yearVal % 4 === 0 && yearVal % 100 !== 0) || (yearVal % 400 === 0);
   const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  const daysInCurrentMonth = daysInMonth[month - 1];
+  const daysInCurrentMonth = daysInMonth[monthVal - 1];
 
-  const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-  const endDate = `${year}-${month.toString().padStart(2, '0')}-${daysInCurrentMonth}`;
+  const startDate = `${yearVal}-${monthVal.toString().padStart(2, '0')}-01`;
+  const endDate = `${yearVal}-${monthVal.toString().padStart(2, '0')}-${daysInCurrentMonth}`;
 
   const results = groups.map(group => {
     const lessonDates: number[] = [];
     for (let day = 1; day <= daysInCurrentMonth; day++) {
-      const date = new Date(year, month - 1, day);
+      const date = new Date(yearVal, monthVal - 1, day);
       const dayOfWeek = date.toLocaleString('en-US', { weekday: 'long' });
       if (group.daysOfWeek?.includes(dayOfWeek)) {
         if (day === daysInCurrentMonth && group.endTime && group.endTime.startsWith('00:')) {
