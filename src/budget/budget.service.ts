@@ -45,13 +45,24 @@ export class BudgetService {
   const totalPaid = Number(paidRes?.sum || 0);
   const unpaidAmount = expectedRevenue - totalPaid;
 
-  const staff = await this.userRepository
+  const staffUsers = await this.userRepository
     .createQueryBuilder('u')
     .leftJoinAndSelect('u.role', 'role')
-    .where('u.salary IS NOT NULL')
+    .where('role.name != :student AND role.name != :superAdmin', { student: 'student', superAdmin: 'superAdmin' })
     .getMany();
 
-  const totalSalary = staff.reduce((sum, u) => sum + Number(u.salary || 0), 0);
+  const staffWithSalary = await Promise.all(
+    staffUsers.map(async (u) => {
+      const base = { id: u.id, firstName: u.firstName, lastName: u.lastName, role: u.role?.name };
+      if (u.role?.name === 'teacher') {
+        const dynamicSalary = await this.computeTeacherSalary(u.id);
+        return { ...base, salary: dynamicSalary };
+      }
+      return { ...base, salary: Number(u.salary || 0) };
+    })
+  );
+
+  const totalSalary = staffWithSalary.reduce((sum, u) => sum + Number(u.salary || 0), 0);
   const netProfit = totalPaid - totalSalary;
 
   let usdExchangeRate = 0.000079;
@@ -73,15 +84,31 @@ export class BudgetService {
     totalSalaryUSD: `$${(totalSalary * usdExchangeRate).toFixed(2)}`,
     unpaidAmountUSD: `$${(unpaidAmount * usdExchangeRate).toFixed(2)}`,
     netProfitUSD: `$${(netProfit * usdExchangeRate).toFixed(2)}`,
-    staff: staff.map(u => ({
-      id: u.id,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      role: u.role?.name,
-      salary: Number(u.salary),
-    })),
+    staff: staffWithSalary,
   };
 }
+
+  private async computeTeacherSalary(teacherId: number): Promise<number> {
+    const teacher = await this.userRepository.findOne({ where: { id: teacherId }, relations: ['role'] });
+    if (!teacher || teacher.role?.name !== 'teacher') return Number(teacher?.salary ?? 0);
+    const percent = Number(teacher.percent ?? 0);
+    if (percent <= 0) return 0;
+
+    const rows = await this.groupRepository
+      .createQueryBuilder('g')
+      .leftJoin('g.users', 'u')
+      .where('g.userId = :teacherId', { teacherId })
+      .andWhere('g.status = :status', { status: 'active' })
+      .select('g.id', 'id')
+      .addSelect('g.price', 'price')
+      .addSelect('COUNT(u.id)', 'studentCount')
+      .groupBy('g.id')
+      .addGroupBy('g.price')
+      .getRawMany();
+
+    const totalRevenue = rows.reduce((sum, r) => sum + Number(r.price ?? 0) * Number(r.studentcount ?? r.studentCount ?? 0), 0);
+    return Number(((totalRevenue * percent) / 100).toFixed(2));
+  }
 
 async getAllGroups(search?: string): Promise<any> {
   const groupsQuery = this.groupRepository
