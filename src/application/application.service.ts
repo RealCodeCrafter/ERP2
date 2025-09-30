@@ -72,6 +72,7 @@ export class ApplicationService {
           lastName,
           phone,
           role,
+          address,
           groups: group ? [group] : [],
           course: course || null,
         });
