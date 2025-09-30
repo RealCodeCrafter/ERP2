@@ -186,6 +186,7 @@ export class ApplicationService {
         firstName: application.firstName,
         lastName: application.lastName,
         phone: application.phone,
+        address: application.address,
         role: role,
         groups: [group],   
       });
