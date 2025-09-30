@@ -9,6 +9,8 @@ import { Roles } from 'src/auth/roles.decorator';
 export class ApplicationController {
   constructor(private readonly applicationService: ApplicationService) {}
 
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard)
   @Post()
   create(@Body() createApplicationDto: CreateApplicationDto) {
     return this.applicationService.create(createApplicationDto);
