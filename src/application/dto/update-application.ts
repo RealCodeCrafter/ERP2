@@ -14,6 +14,10 @@ export class UpdateApplicationDto {
   phone?: string;
 
   @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
   @IsBoolean()
   status?: boolean;
 

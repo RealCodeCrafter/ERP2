@@ -17,6 +17,9 @@ export class Application {
   @Column({ type: 'varchar', length: 15 })
   phone: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  address?: string;
+
   @Column({ type: 'boolean', default: false })
   status: boolean;
 

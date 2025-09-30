@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Application } from './entities/application.entity';
@@ -25,12 +25,23 @@ export class ApplicationService {
   ) {}
 
   async create(createApplicationDto: CreateApplicationDto): Promise<Application> {
-    const { firstName, lastName, phone, groupId, courseId } = createApplicationDto;
+    const { firstName, lastName, phone, address, groupId, courseId } = createApplicationDto;
+
+    const existingApplication = await this.applicationRepository.findOne({ where: { phone } });
+    if (existingApplication) {
+      throw new BadRequestException('Application with this phone number already exists');
+    }
+
+    const existingUser = await this.userRepository.findOne({ where: { phone } });
+    if (existingUser) {
+      throw new BadRequestException('User with this phone number already exists');
+    }
 
     const application = this.applicationRepository.create({ 
       firstName, 
       lastName, 
       phone,
+      address,
       isContacted: false 
     });
 
@@ -76,6 +87,7 @@ export class ApplicationService {
 
       application.user = user;
       application.group = group || null;
+      application.course = course || null;
       application.status = true;
     } else {
       application.status = false;
@@ -117,6 +129,7 @@ export class ApplicationService {
         firstName: app.firstName,
         lastName: app.lastName,
         phone: app.phone,
+        address: app.address,
         createdAt: app.createdAt,
         status: app.status,
         isContacted: app.isContacted,
@@ -165,15 +178,24 @@ export class ApplicationService {
       throw new NotFoundException(`Role 'student' not found`);
     }
 
-    const user = this.userRepository.create({
-      firstName: application.firstName,
-      lastName: application.lastName,
-      phone: application.phone,
-      role: role,
-      groups: [group],   
-    });
+    let user = await this.userRepository.findOne({ where: { phone: application.phone }, relations: ['groups'] });
 
-    await this.userRepository.save(user);
+    if (!user) {
+      user = this.userRepository.create({
+        firstName: application.firstName,
+        lastName: application.lastName,
+        phone: application.phone,
+        role: role,
+        groups: [group],   
+      });
+      await this.userRepository.save(user);
+    } else {
+      if (!user.groups) user.groups = [];
+      if (!user.groups.some(g => g.id === group.id)) {
+        user.groups.push(group);
+      }
+      await this.userRepository.save(user);
+    }
 
     application.user = user;
     application.group = group;

@@ -14,6 +14,10 @@ export class CreateApplicationDto {
   phone: string;
 
   @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
   @IsNumber()
   groupId?: number;
 
