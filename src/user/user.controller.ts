@@ -28,13 +28,7 @@ export class UserController {
     return this.userService.findAll(role, firstName, lastName, phone);
   }
 
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard)
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.findOne(id);
-  }
-
+  
   @UseGuards(AuthGuard)
   @Get('me')
   getMe(@Req() req: any) {
@@ -119,6 +113,15 @@ export class UserController {
     const id = Number(req.user.id);
     return this.userService.updateMe(id, updateUserDto);
   }
+
+  
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard)
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
+  }
+
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)
