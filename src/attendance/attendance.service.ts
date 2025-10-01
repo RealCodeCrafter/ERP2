@@ -188,7 +188,6 @@ export class AttendanceService {
         groupName,
         date: a.date,
         status: a.status,
-        markedBy: `${a.teacher?.firstName} ${a.teacher?.lastName}`,
       };
     }),
   );
