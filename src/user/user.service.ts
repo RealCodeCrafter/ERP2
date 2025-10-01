@@ -342,45 +342,46 @@ export class UserService {
   }
 
   async remove(id: number, adminId: number): Promise<{ message: string }> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      relations: ['groups', 'groups.user', 'role'],
-    });
-    if (!user) {
-      return { message: `User with id ${id} does not exist` };
-    }
+  const user = await this.userRepository.findOne({
+    where: { id },
+    relations: ['groups', 'groups.user', 'role'],
+  });
 
-    const rolesToArchive = ['teacher', 'admin', 'superAdmin'];
-    if (rolesToArchive.includes(user.role.name)) {
-      const archived = new ArchivedUser();
-      archived.firstName = user.firstName;
-      archived.lastName = user.lastName;
-      archived.username = user.username;
-      archived.password = user.password;
-      archived.phone = user.phone;
-      archived.address = user.address;
-      archived.specialty = user.specialty;
-      archived.salary = user.salary;
-      archived.percent = user.percent;
-      archived.roleId = user.role.id;
-
-      await this.archiveService.create(archived, adminId);
-      await this.userRepository.remove(user);
-      return { message: `User with id ${id} has been archived` };
-    } else {
-      if (user.role.name === 'student') {
-        const teacherIds = new Set(user.groups.map(g => g.user?.id).filter(id => id));
-        await this.userRepository.remove(user);
-        for (const teacherId of teacherIds) {
-          const computed = await this.computeTeacherSalaryDb(teacherId);
-          await this.userRepository.update(teacherId, { salary: computed });
-        }
-      } else {
-        await this.userRepository.remove(user);
-      }
-      return { message: `User with id ${id} has been successfully deleted` };
-    }
+  if (!user) {
+    return { message: `User with id ${id} does not exist` };
   }
+
+  const rolesToArchive = ['teacher', 'student'];
+
+  if (rolesToArchive.includes(user.role.name)) {
+    const archived = new ArchivedUser();
+    archived.firstName = user.firstName;
+    archived.lastName = user.lastName;
+    archived.username = user.username;
+    archived.password = user.password;
+    archived.phone = user.phone;
+    archived.address = user.address;
+    archived.specialty = user.specialty;
+    archived.salary = user.salary;
+    archived.percent = user.percent;
+    archived.roleId = user.role.id;
+
+    await this.archiveService.create(archived, adminId);
+    await this.userRepository.remove(user);
+    if (user.role.name === 'student') {
+      const teacherIds = new Set(user.groups.map(g => g.user?.id).filter(id => id));
+      for (const teacherId of teacherIds) {
+        const computed = await this.computeTeacherSalaryDb(teacherId);
+        await this.userRepository.update(teacherId, { salary: computed });
+      }
+    }
+
+    return { message: `User with id ${id} has been archived` };
+  }
+
+  await this.userRepository.remove(user);
+  return { message: `User with id ${id} has been successfully deleted` };
+}
 
   async getAdmins(firstName?: string, lastName?: string, phone?: string): Promise<User[]> {
     const query: any = { role: { name: 'admin' } };
