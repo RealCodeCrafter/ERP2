@@ -90,6 +90,12 @@ export class ApplicationService {
       application.group = group || null;
       application.course = course || null;
       application.status = true;
+
+      // Update teacher's salary if group assigned
+      if (group?.user?.id) {
+        const computed = await this.computeTeacherSalary(group.user.id);
+        await this.userRepository.update(group.user.id, { salary: computed });
+      }
     } else {
       application.status = false;
     }
@@ -167,7 +173,7 @@ export class ApplicationService {
 
     const group = await this.groupRepository.findOne({ 
       where: { id: groupId, status: 'active' }, 
-      relations: ['course']
+      relations: ['course', 'user']
     });
 
     if (!group) {
@@ -203,18 +209,55 @@ export class ApplicationService {
     application.group = group;
     application.status = true;
 
+    // Update teacher's salary
+    if (group.user?.id) {
+      const computed = await this.computeTeacherSalary(group.user.id);
+      await this.userRepository.update(group.user.id, { salary: computed });
+    }
+
     return this.applicationRepository.save(application);
   }
 
   async removeGroup(id: number): Promise<Application> {
     const application = await this.findOne(id);
+    const group = application.group;
     application.group = null;
-    return this.applicationRepository.save(application);
+    const saved = await this.applicationRepository.save(application);
+
+    // Update teacher's salary if group was assigned
+    if (group?.user?.id) {
+      const computed = await this.computeTeacherSalary(group.user.id);
+      await this.userRepository.update(group.user.id, { salary: computed });
+    }
+
+    return saved;
   }
 
   async markContacted(id: number): Promise<Application> {
     const application = await this.findOne(id);
     application.isContacted = true;
     return this.applicationRepository.save(application);
+  }
+
+  private async computeTeacherSalary(teacherId: number): Promise<number> {
+    const teacher = await this.userRepository.findOne({ where: { id: teacherId }, relations: ['role'] });
+    if (!teacher || teacher.role?.name !== 'teacher') return Number(teacher?.salary ?? 0);
+    const percent = Number(teacher.percent ?? 0);
+    if (percent <= 0) return 0;
+
+    const rows = await this.groupRepository
+      .createQueryBuilder('g')
+      .leftJoin('g.users', 'u')
+      .where('g.userId = :teacherId', { teacherId })
+      .andWhere('g.status = :status', { status: 'active' })
+      .select('g.id', 'id')
+      .addSelect('g.price', 'price')
+      .addSelect('COUNT(u.id)', 'studentCount')
+      .groupBy('g.id')
+      .addGroupBy('g.price')
+      .getRawMany();
+
+    const totalRevenue = rows.reduce((sum, r) => sum + Number(r.price ?? 0) * Number(r.studentcount ?? r.studentCount ?? 0), 0);
+    return Number(((totalRevenue * percent) / 100).toFixed(2));
   }
 }

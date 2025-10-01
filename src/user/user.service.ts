@@ -101,15 +101,25 @@ export class UserService {
       groups: groupEntity ? [groupEntity] : [], // Assign group for students
     });
 
-    await this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
 
     if (role === 'teacher') {
-      const computed = await this.computeTeacherSalaryDb(user.id);
-      await this.userRepository.update(user.id, { salary: computed });
+      const computed = await this.computeTeacherSalaryDb(savedUser.id);
+      await this.userRepository.update(savedUser.id, { salary: computed });
+    } else if (role === 'student' && groupEntity) {
+      // Update teacher's salary after adding student to group
+      const groupWithTeacher = await this.groupRepository.findOne({
+        where: { id: groupId },
+        relations: ['user'],
+      });
+      if (groupWithTeacher?.user?.id) {
+        const computed = await this.computeTeacherSalaryDb(groupWithTeacher.user.id);
+        await this.userRepository.update(groupWithTeacher.user.id, { salary: computed });
+      }
     }
 
     const fresh = await this.userRepository.findOne({
-      where: { id: user.id },
+      where: { id: savedUser.id },
       relations: ['groups', 'groups.course', 'role', 'groupsAsTeacher'],
     });
     return fresh as any;
@@ -332,12 +342,27 @@ export class UserService {
 
 
 async remove(id: number): Promise<{ message: string }> {
-  const user = await this.userRepository.findOne({ where: { id } });
+  const user = await this.userRepository.findOne({
+    where: { id },
+    relations: ['groups', 'groups.user', 'role'],
+  });
   if (!user) {
     return { message: `User with id ${id} does not exist` };
   }
 
-  await this.userRepository.remove(user);
+  if (user.role.name === 'student') {
+    // Collect teachers before removal
+    const teacherIds = new Set(user.groups.map(g => g.user?.id).filter(id => id));
+    await this.userRepository.remove(user);
+    // Update salaries for affected teachers
+    for (const teacherId of teacherIds) {
+      const computed = await this.computeTeacherSalaryDb(teacherId);
+      await this.userRepository.update(teacherId, { salary: computed });
+    }
+  } else {
+    await this.userRepository.remove(user);
+  }
+
   return { message: `User with id ${id} has been successfully deleted` };
 }
 
