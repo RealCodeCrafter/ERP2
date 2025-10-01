@@ -155,32 +155,51 @@ export class AttendanceService {
   }
 
   async getTeacherAttendances(filters: { groupId?: number; date?: string; teacherId?: number }) {
-    const query: any = { isTeacherAttendance: true };
-    if (filters.teacherId) {
-      query.user = { id: filters.teacherId };
-    }
-    if (filters.date) {
-      query.date = filters.date;
-    }
-    if (filters.groupId) {
-      query.group = { id: filters.groupId };
-    }
-
-    const attendances = await this.attendanceRepository.find({
-      where: query,
-      relations: ['user', 'group', 'teacher'],
-      order: { date: 'DESC' },
-    });
-
-    return attendances.map(a => ({
-      id: a.id,
-      teacherName: `${a.user.firstName} ${a.user.lastName}`,
-      groupName: a.group?.name || null,
-      date: a.date,
-      status: a.status,
-      markedBy: `${a.teacher?.firstName} ${a.teacher?.lastName}`,
-    }));
+  const query: any = { isTeacherAttendance: true };
+  if (filters.teacherId) {
+    query.user = { id: filters.teacherId };
   }
+  if (filters.date) {
+    query.date = filters.date;
+  }
+
+  const attendances = await this.attendanceRepository.find({
+    where: query,
+    relations: ['user', 'user.groupsAsTeacher', 'teacher'],
+    order: { date: 'DESC' },
+  });
+
+  const filteredAttendances = await Promise.all(
+    attendances.map(async (a) => {
+      let groupName = null;
+      if (filters.groupId) {
+        const group = await this.groupRepository.findOne({
+          where: { id: filters.groupId, user: { id: a.user.id } },
+        });
+        groupName = group?.name || null;
+      } else {
+        const groups = a.user.groupsAsTeacher || [];
+        groupName = groups.length > 0 ? groups.map(g => g.name).join(', ') : null;
+      }
+
+      return {
+        id: a.id,
+        teacherName: `${a.user.firstName} ${a.user.lastName}`,
+        groupName,
+        date: a.date,
+        status: a.status,
+        reason: a.reason || null,
+        markedBy: `${a.teacher?.firstName} ${a.teacher?.lastName}`,
+      };
+    }),
+  );
+
+  if (filters.groupId) {
+    return filteredAttendances.filter(a => a.groupName !== null);
+  }
+
+  return filteredAttendances;
+}
 
   async findAll() {
     return this.attendanceRepository.find({
