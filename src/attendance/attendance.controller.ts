@@ -10,13 +10,42 @@ export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
   @Roles('teacher')
-@UseGuards(AuthGuard)
-@Post()
-createOrUpdate(@Req() req, @Body() createAttendanceDto: CreateAttendanceDto) {
-  const teacherId = req.user.id;
-  return this.attendanceService.createOrUpdate(createAttendanceDto, teacherId);
-}
+  @UseGuards(AuthGuard)
+  @Post()
+  createOrUpdate(@Req() req, @Body() createAttendanceDto: CreateAttendanceDto) {
+    const teacherId = req.user.id;
+    return this.attendanceService.createOrUpdate(createAttendanceDto, teacherId);
+  }
 
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard)
+  @Post('teacher')
+  markTeacherAttendance(@Req() req, @Body() body: { teacherId: number; date: string; status: 'absent_with_reason' | 'absent_without_reason' }) {
+    const adminId = req.user.id;
+    const { teacherId, date, status } = body;
+    if (!teacherId || !date || !status) {
+      throw new BadRequestException('teacherId, date, and status are required');
+    }
+    if (!['absent_with_reason', 'absent_without_reason'].includes(status)) {
+      throw new BadRequestException('Invalid status, must be absent_with_reason or absent_without_reason');
+    }
+    return this.attendanceService.markTeacherAttendance(teacherId, date, status, adminId);
+  }
+
+  @Roles('admin', 'superAdmin', 'teacher')
+  @UseGuards(AuthGuard)
+  @Get('teacher')
+  getTeacherAttendances(
+    @Query('groupId') groupId?: string,
+    @Query('date') date?: string,
+    @Query('teacherId') teacherId?: string,
+  ) {
+    return this.attendanceService.getTeacherAttendances({
+      groupId: groupId ? +groupId : undefined,
+      date,
+      teacherId: teacherId ? +teacherId : undefined,
+    });
+  }
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard)
