@@ -28,9 +28,6 @@ export class Attendance {
   @Column({ type: 'boolean', default: false })
   isTeacherAttendance: boolean;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  reason: string | null;
-
   @CreateDateColumn()
   createdAt: Date;
 }
