@@ -145,11 +145,10 @@ export class AttendanceService {
     }
 
     const attendance = this.attendanceRepository.create({
-      user: teacher,
       date: targetDate.format('YYYY-MM-DD'),
       status,
       isTeacherAttendance: true,
-      teacher: admin,
+      teacher: teacher,
     });
 
     return await this.attendanceRepository.save(attendance);
