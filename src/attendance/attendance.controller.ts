@@ -16,21 +16,26 @@ export class AttendanceController {
     const teacherId = req.user.id;
     return this.attendanceService.createOrUpdate(createAttendanceDto, teacherId);
   }
+@Roles('admin', 'superAdmin')
+@UseGuards(AuthGuard)
+@Post('teacher')
+markTeacherAttendance(
+  @Req() req,
+  @Body() body: { teacherId: number; groupId: number; date: string; status: 'absent_with_reason' | 'absent_without_reason' },
+) {
+  const adminId = req.user.id;
+  const { teacherId, groupId, date, status } = body;
 
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard)
-  @Post('teacher')
-  markTeacherAttendance(@Req() req, @Body() body: { teacherId: number; date: string; status: 'absent_with_reason' | 'absent_without_reason' }) {
-    const adminId = req.user.id;
-    const { teacherId, date, status } = body;
-    if (!teacherId || !date || !status) {
-      throw new BadRequestException('teacherId, date, and status are required');
-    }
-    if (!['absent_with_reason', 'absent_without_reason'].includes(status)) {
-      throw new BadRequestException('Invalid status, must be absent_with_reason or absent_without_reason');
-    }
-    return this.attendanceService.markTeacherAttendance(teacherId, date, status, adminId);
+  if (!teacherId || !groupId || !date || !status) {
+    throw new BadRequestException('teacherId, groupId, date, and status are required');
   }
+  if (!['absent_with_reason', 'absent_without_reason'].includes(status)) {
+    throw new BadRequestException('Invalid status, must be absent_with_reason or absent_without_reason');
+  }
+
+  return this.attendanceService.markTeacherAttendance(teacherId, groupId, date, status, adminId);
+}
+
 
   @Roles('admin', 'superAdmin', 'teacher')
   @UseGuards(AuthGuard)
