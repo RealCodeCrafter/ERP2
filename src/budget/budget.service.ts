@@ -31,7 +31,6 @@ export class BudgetService {
     const price = parseFloat(group.price ?? '0');
     const count = Number(group.studentCount ?? 0);
     const groupRevenue = price * count;
-    console.log(`Group ${group.id}: price=${price}, count=${count}, revenue=${groupRevenue}`);
     return acc + groupRevenue;
   }, 0);
 

@@ -19,6 +19,8 @@ import { GroupModule } from './groups/group.module';
 import { CourseModule } from './courses/courses.module'
 import { PaymentModule } from './payment/payment.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ArchivedUser } from './archive/entities/archive.entity';
+import { ArchiveModule } from './archive/archive.module';
 
 @Module({
   imports: [
@@ -47,6 +49,7 @@ import { AttendanceModule } from './attendance/attendance.module';
           Course,
           Payment,
           Attendance,
+          ArchivedUser
         ],
         synchronize: true,
         autoLoadEntities: true,
@@ -62,7 +65,8 @@ import { AttendanceModule } from './attendance/attendance.module';
     GroupModule,
     CourseModule,
     PaymentModule,
-    AttendanceModule
+    AttendanceModule,
+    ArchiveModule
   ],
   controllers: [],
   providers: [],

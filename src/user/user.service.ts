@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, NotFoundException, HttpException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, Between, Not, IsNull } from 'typeorm';
+import { Repository, ILike, Between, Not, IsNull, In } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -10,6 +10,8 @@ import { Course } from '../courses/entities/course.entity';
 import { Payment } from '../budget/entities/payment.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import * as bcrypt from 'bcrypt';
+import { ArchiveService } from '../archive/archive.service';
+import { ArchivedUser } from '../archive/entities/archive.entity';
 
 @Injectable()
 export class UserService {
@@ -26,6 +28,7 @@ export class UserService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(Attendance)
     private attendanceRepository: Repository<Attendance>,
+    private archiveService: ArchiveService,
   ) {}
 
   async create(createUserDto: CreateUserDto, currentUser: any): Promise<User> {
@@ -98,7 +101,7 @@ export class UserService {
       salary: salary ?? null,
       percent: percent ?? null,
       course: courseEntity || null,
-      groups: groupEntity ? [groupEntity] : [], // Assign group for students
+      groups: groupEntity ? [groupEntity] : [],
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -107,7 +110,6 @@ export class UserService {
       const computed = await this.computeTeacherSalaryDb(savedUser.id);
       await this.userRepository.update(savedUser.id, { salary: computed });
     } else if (role === 'student' && groupEntity) {
-      // Update teacher's salary after adding student to group
       const groupWithTeacher = await this.groupRepository.findOne({
         where: { id: groupId },
         relations: ['user'],
@@ -126,89 +128,89 @@ export class UserService {
   }
 
   async getDashboard(): Promise<any> {
-  const totalStudents = await this.userRepository
-    .createQueryBuilder('user')
-    .innerJoin('user.groups', 'group')
-    .innerJoin('user.role', 'role')
-    .where('group.status = :status', { status: 'active' })
-    .andWhere('role.name = :roleName', { roleName: 'student' })
-    .distinct(true)
-    .getCount();
+    const totalStudents = await this.userRepository
+      .createQueryBuilder('user')
+      .innerJoin('user.groups', 'group')
+      .innerJoin('user.role', 'role')
+      .where('group.status = :status', { status: 'active' })
+      .andWhere('role.name = :roleName', { roleName: 'student' })
+      .distinct(true)
+      .getCount();
 
-  const activeStudents = totalStudents; // Faol guruhlardagi o‘quvchilar soni
+    const activeStudents = totalStudents;
 
-  const activeGroups = await this.groupRepository.count({
-    where: { status: 'active' },
-  });
+    const activeGroups = await this.groupRepository.count({
+      where: { status: 'active' },
+    });
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  const monthlyRevenueRaw = await this.paymentRepository
-    .createQueryBuilder('payment')
-    .select('payment.monthFor', 'month')
-    .addSelect('SUM(payment.amount)', 'income')
-    .where('payment.paid = :paid', { paid: true })
-    .andWhere('payment.monthFor LIKE :year', { year: `${year}%` })
-    .groupBy('payment.monthFor')
-    .getRawMany();
+    const monthlyRevenueRaw = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('payment.monthFor', 'month')
+      .addSelect('SUM(payment.amount)', 'income')
+      .where('payment.paid = :paid', { paid: true })
+      .andWhere('payment.monthFor LIKE :year', { year: `${year}%` })
+      .groupBy('payment.monthFor')
+      .getRawMany();
 
-  let annualRevenue = 0;
-  const monthlyRevenue = monthNames.map((month, index) => {
-    const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
-    const incomeRow = monthlyRevenueRaw.find(row => row.month === monthKey);
-    const income = incomeRow ? Number(incomeRow.income) : 0;
-    annualRevenue += income;
-    return { month, income };
-  });
+    let annualRevenue = 0;
+    const monthlyRevenue = monthNames.map((month, index) => {
+      const monthKey = `${year}-${String(index + 1).padStart(2, '0')}`;
+      const incomeRow = monthlyRevenueRaw.find(row => row.month === monthKey);
+      const income = incomeRow ? Number(incomeRow.income) : 0;
+      annualRevenue += income;
+      return { month, income };
+    });
 
-  const usdExchangeRate = 0.000079;
+    const usdExchangeRate = 0.000079;
 
-  const annualRevenueUSD = (annualRevenue * usdExchangeRate).toFixed(2);
+    const annualRevenueUSD = (annualRevenue * usdExchangeRate).toFixed(2);
 
-  const currentMonthKey = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const paidStudentsRaw = await this.paymentRepository
-    .createQueryBuilder('payment')
-    .select('COUNT(DISTINCT payment.userId)', 'count')
-    .where('payment.paid = :paid', { paid: true })
-    .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
-    .getRawOne();
-  const paidStudents = Number(paidStudentsRaw?.count || 0);
+    const currentMonthKey = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const paidStudentsRaw = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('COUNT(DISTINCT payment.userId)', 'count')
+      .where('payment.paid = :paid', { paid: true })
+      .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
+      .getRawOne();
+    const paidStudents = Number(paidStudentsRaw?.count || 0);
 
-  const activeStudentsList = await this.userRepository
-    .createQueryBuilder('user')
-    .innerJoin('user.groups', 'group')
-    .innerJoin('user.role', 'role')
-    .where('group.status = :status', { status: 'active' })
-    .andWhere('role.name = :roleName', { roleName: 'student' })
-    .distinct(true)
-    .getMany();
+    const activeStudentsList = await this.userRepository
+      .createQueryBuilder('user')
+      .innerJoin('user.groups', 'group')
+      .innerJoin('user.role', 'role')
+      .where('group.status = :status', { status: 'active' })
+      .andWhere('role.name = :roleName', { roleName: 'student' })
+      .distinct(true)
+      .getMany();
 
-  const paidUserIdsRaw = await this.paymentRepository
-    .createQueryBuilder('payment')
-    .select('DISTINCT payment.userId', 'userId')
-    .where('payment.paid = :paid', { paid: true })
-    .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
-    .getRawMany();
+    const paidUserIdsRaw = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('DISTINCT payment.userId', 'userId')
+      .where('payment.paid = :paid', { paid: true })
+      .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
+      .getRawMany();
 
-  const paidUserIdsSet = new Set(paidUserIdsRaw.map(p => p.userId));
-  const unpaidStudents = activeStudentsList.filter(user => !paidUserIdsSet.has(user.id)).length;
+    const paidUserIdsSet = new Set(paidUserIdsRaw.map(p => p.userId));
+    const unpaidStudents = activeStudentsList.filter(user => !paidUserIdsSet.has(user.id)).length;
 
-  return {
-    totalStudents,
-    paidStudents,
-    averageStudentsPerGroup: activeGroups > 0 ? Math.round(totalStudents / activeGroups) : 0,
-    activeGroups,
-    monthlyRevenue,
-    annualRevenue,
-    annualRevenueUSD: `$${annualRevenueUSD}`,
-    usdExchangeRate,
-    paidStudentsCount: paidStudents,
-    unpaidStudents,
-    reportDate: now.toLocaleDateString('uz-UZ', { year: 'numeric' }),
-  };
-}
+    return {
+      totalStudents,
+      paidStudents,
+      averageStudentsPerGroup: activeGroups > 0 ? Math.round(totalStudents / activeGroups) : 0,
+      activeGroups,
+      monthlyRevenue,
+      annualRevenue,
+      annualRevenueUSD: `$${annualRevenueUSD}`,
+      usdExchangeRate,
+      paidStudentsCount: paidStudents,
+      unpaidStudents,
+      reportDate: now.toLocaleDateString('uz-UZ', { year: 'numeric' }),
+    };
+  }
 
   async findAll(role?: string, firstName?: string, lastName?: string, phone?: string): Promise<any[]> {
     const query: any = {};
@@ -259,7 +261,6 @@ export class UserService {
       }
     }
 
-
     if (updateUserDto.password) {
       user.password = await bcrypt.hash(updateUserDto.password, 10);
     }
@@ -285,87 +286,101 @@ export class UserService {
   }
 
   async updateMe(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-  const user = await this.findOne(id);
+    const user = await this.findOne(id);
 
-  if ('role' in updateUserDto) {
-    delete updateUserDto.role;
-  }
+    if ('role' in updateUserDto) {
+      delete updateUserDto.role;
+    }
 
-  if (
-    updateUserDto.username &&
-    updateUserDto.username !== user.username
-  ) {
-    const existingUsername = await this.userRepository.findOne({
-      where: { username: updateUserDto.username },
+    if (
+      updateUserDto.username &&
+      updateUserDto.username !== user.username
+    ) {
+      const existingUsername = await this.userRepository.findOne({
+        where: { username: updateUserDto.username },
+      });
+      if (existingUsername) {
+        throw new ConflictException(
+          `Username ${updateUserDto.username} already exists`,
+        );
+      }
+    }
+
+    if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
+      const existingPhone = await this.userRepository.findOne({
+        where: { phone: updateUserDto.phone },
+      });
+      if (existingPhone) {
+        throw new ConflictException(
+          `Phone ${updateUserDto.phone} already exists`,
+        );
+      }
+    }
+
+    if (updateUserDto.password) {
+      user.password = await bcrypt.hash(updateUserDto.password, 10);
+    }
+
+    Object.assign(user, {
+      firstName: updateUserDto.firstName ?? user.firstName,
+      lastName: updateUserDto.lastName ?? user.lastName,
+      phone: updateUserDto.phone ?? user.phone,
+      address: updateUserDto.address ?? user.address,
+      username: updateUserDto.username ?? user.username,
+      specialty: updateUserDto.specialty ?? user.specialty,
+      salary: user.role?.name === 'teacher' ? null : (updateUserDto.salary ?? user.salary),
+      percent: updateUserDto.percent ?? user.percent,
     });
-    if (existingUsername) {
-      throw new ConflictException(
-        `Username ${updateUserDto.username} already exists`,
-      );
+
+    const savedUserForMe = await this.userRepository.save(user);
+    if (savedUserForMe.role?.name === 'teacher') {
+      const computed = await this.computeTeacherSalaryDb(savedUserForMe.id);
+      await this.userRepository.update(savedUserForMe.id, { salary: computed });
     }
+    const freshMe = await this.userRepository.findOne({ where: { id: savedUserForMe.id }, relations: ['role'] });
+    return freshMe as any;
   }
 
-  if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
-    const existingPhone = await this.userRepository.findOne({
-      where: { phone: updateUserDto.phone },
+  async remove(id: number, adminId: number): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['groups', 'groups.user', 'role'],
     });
-    if (existingPhone) {
-      throw new ConflictException(
-        `Phone ${updateUserDto.phone} already exists`,
-      );
+    if (!user) {
+      return { message: `User with id ${id} does not exist` };
+    }
+
+    const rolesToArchive = ['teacher', 'admin', 'superAdmin'];
+    if (rolesToArchive.includes(user.role.name)) {
+      const archived = new ArchivedUser();
+      archived.firstName = user.firstName;
+      archived.lastName = user.lastName;
+      archived.username = user.username;
+      archived.password = user.password;
+      archived.phone = user.phone;
+      archived.address = user.address;
+      archived.specialty = user.specialty;
+      archived.salary = user.salary;
+      archived.percent = user.percent;
+      archived.roleId = user.role.id;
+
+      await this.archiveService.create(archived, adminId);
+      await this.userRepository.remove(user);
+      return { message: `User with id ${id} has been archived` };
+    } else {
+      if (user.role.name === 'student') {
+        const teacherIds = new Set(user.groups.map(g => g.user?.id).filter(id => id));
+        await this.userRepository.remove(user);
+        for (const teacherId of teacherIds) {
+          const computed = await this.computeTeacherSalaryDb(teacherId);
+          await this.userRepository.update(teacherId, { salary: computed });
+        }
+      } else {
+        await this.userRepository.remove(user);
+      }
+      return { message: `User with id ${id} has been successfully deleted` };
     }
   }
-
-  if (updateUserDto.password) {
-    user.password = await bcrypt.hash(updateUserDto.password, 10);
-  }
-
-  Object.assign(user, {
-    firstName: updateUserDto.firstName ?? user.firstName,
-    lastName: updateUserDto.lastName ?? user.lastName,
-    phone: updateUserDto.phone ?? user.phone,
-    address: updateUserDto.address ?? user.address,
-    username: updateUserDto.username ?? user.username,
-    specialty: updateUserDto.specialty ?? user.specialty,
-    salary: user.role?.name === 'teacher' ? null : (updateUserDto.salary ?? user.salary),
-    percent: updateUserDto.percent ?? user.percent,
-  });
-
-  const savedUserForMe = await this.userRepository.save(user);
-  if (savedUserForMe.role?.name === 'teacher') {
-    const computed = await this.computeTeacherSalaryDb(savedUserForMe.id);
-    await this.userRepository.update(savedUserForMe.id, { salary: computed });
-  }
-  const freshMe = await this.userRepository.findOne({ where: { id: savedUserForMe.id }, relations: ['role'] });
-  return freshMe as any;
-}
-
-
-async remove(id: number): Promise<{ message: string }> {
-  const user = await this.userRepository.findOne({
-    where: { id },
-    relations: ['groups', 'groups.user', 'role'],
-  });
-  if (!user) {
-    return { message: `User with id ${id} does not exist` };
-  }
-
-  if (user.role.name === 'student') {
-    // Collect teachers before removal
-    const teacherIds = new Set(user.groups.map(g => g.user?.id).filter(id => id));
-    await this.userRepository.remove(user);
-    // Update salaries for affected teachers
-    for (const teacherId of teacherIds) {
-      const computed = await this.computeTeacherSalaryDb(teacherId);
-      await this.userRepository.update(teacherId, { salary: computed });
-    }
-  } else {
-    await this.userRepository.remove(user);
-  }
-
-  return { message: `User with id ${id} has been successfully deleted` };
-}
-
 
   async getAdmins(firstName?: string, lastName?: string, phone?: string): Promise<User[]> {
     const query: any = { role: { name: 'admin' } };
@@ -413,109 +428,108 @@ async remove(id: number): Promise<{ message: string }> {
   async getMe(id: number): Promise<User> {
     return this.findOne(id);
   }
-async getAllStudents(filters: {
-  groupId?: number;
-  paid?: 'true' | 'false';
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  address?: string;
-  monthFor?: string;
-}) {
-  const { groupId, paid, firstName, lastName, phone, address, monthFor } = filters;
 
-  const query: any = { role: { name: 'student' } };
-  if (firstName) query.firstName = ILike(`%${firstName}%`);
-  if (lastName) query.lastName = ILike(`%${lastName}%`);
-  if (phone) query.phone = ILike(`%${phone}%`);
-  if (address) query.address = ILike(`%${address}%`);
+  async getAllStudents(filters: {
+    groupId?: number;
+    paid?: 'true' | 'false';
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    address?: string;
+    monthFor?: string;
+  }) {
+    const { groupId, paid, firstName, lastName, phone, address, monthFor } = filters;
 
-  const students = await this.userRepository.find({
-    where: query,
-    relations: ['groups', 'groups.course', 'groups.user', 'payments', 'payments.group'],
-  });
+    const query: any = { role: { name: 'student' } };
+    if (firstName) query.firstName = ILike(`%${firstName}%`);
+    if (lastName) query.lastName = ILike(`%${lastName}%`);
+    if (phone) query.phone = ILike(`%${phone}%`);
+    if (address) query.address = ILike(`%${address}%`);
 
-  const monthQuery =
-    monthFor ||
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-
-  let filteredStudents = students.map(s => ({
-    ...s,
-    groups: s.groups || [],
-    payments: s.payments || [],
-  }));
-
-  if (groupId !== undefined) {
-    filteredStudents = filteredStudents.filter(s =>
-      s.groups.some(g => g && g.id === groupId),
-    );
-  }
-
-  const studentsWithPayments = filteredStudents.map(s => {
-    
-    const groupsList = s.groups.map(g => ({
-      id: g.id,
-      name: g.name,
-      teacher: g.user ? `${g.user.firstName} ${g.user.lastName}`.trim() : null,
-      course: g.course ? g.course.name : null,
-      studentCount: g.users?.length || 0,
-      status: g.status,
-      price: Number(g.price ?? 0),
-      data: g.startTime && g.endTime ? `${g.startTime} ${g.endTime}` : null,
-      dataDays: g.daysOfWeek || [],
-    }));
-
-    const paymentsList = s.groups.flatMap(group => {
-      const groupPayments = s.payments.filter(
-        p => p.group?.id === group.id && p.monthFor === monthQuery
-      );
-
-      if (groupPayments.length === 0) {
-        return [
-          {
-            id: null,
-            amount: 0,
-            monthFor: monthQuery,
-            paid: false,
-            paymentType: null,
-            groupId: group.id,
-            createdAt: null,
-          },
-        ];
-      }
-
-      return groupPayments.map(p => ({
-        id: p.id,
-        amount: Number(p.amount ?? 0),
-        monthFor: p.monthFor,
-        paid: p.paid ?? (Number(p.amount ?? 0) >= Number(group.price ?? 0)),
-        paymentType: p.paymentType,
-        groupId: group.id,
-        createdAt: p.createdAt,
-      }));
+    const students = await this.userRepository.find({
+      where: query,
+      relations: ['groups', 'groups.course', 'groups.user', 'payments', 'payments.group'],
     });
 
-    return {
-      id: s.id,
-      fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
-      phone: s.phone,
-      address: s.address,
-      groups: groupsList,
-      payments: paymentsList,
-    };
-  });
+    const monthQuery =
+      monthFor ||
+      `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-  if (paid) {
-    return studentsWithPayments.filter(s =>
-      s.payments.some(p => (paid === 'true' ? p.paid : !p.paid))
-    );
+    let filteredStudents = students.map(s => ({
+      ...s,
+      groups: s.groups || [],
+      payments: s.payments || [],
+    }));
+
+    if (groupId !== undefined) {
+      filteredStudents = filteredStudents.filter(s =>
+        s.groups.some(g => g && g.id === groupId),
+      );
+    }
+
+    const studentsWithPayments = filteredStudents.map(s => {
+      const groupsList = s.groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        teacher: g.user ? `${g.user.firstName} ${g.user.lastName}`.trim() : null,
+        course: g.course ? g.course.name : null,
+        studentCount: g.users?.length || 0,
+        status: g.status,
+        price: Number(g.price ?? 0),
+        data: g.startTime && g.endTime ? `${g.startTime} ${g.endTime}` : null,
+        dataDays: g.daysOfWeek || [],
+      }));
+
+      const paymentsList = s.groups.flatMap(group => {
+        const groupPayments = s.payments.filter(
+          p => p.group?.id === group.id && p.monthFor === monthQuery
+        );
+
+        if (groupPayments.length === 0) {
+          return [
+            {
+              id: null,
+              amount: 0,
+              monthFor: monthQuery,
+              paid: false,
+              paymentType: null,
+              groupId: group.id,
+              createdAt: null,
+            },
+          ];
+        }
+
+        return groupPayments.map(p => ({
+          id: p.id,
+          amount: Number(p.amount ?? 0),
+          monthFor: p.monthFor,
+          paid: p.paid ?? (Number(p.amount ?? 0) >= Number(group.price ?? 0)),
+          paymentType: p.paymentType,
+          groupId: group.id,
+          createdAt: p.createdAt,
+        }));
+      });
+
+      return {
+        id: s.id,
+        fullName: `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim(),
+        phone: s.phone,
+        address: s.address,
+        groups: groupsList,
+        payments: paymentsList,
+      };
+    });
+
+    if (paid) {
+      return studentsWithPayments.filter(s =>
+        s.payments.some(p => (paid === 'true' ? p.paid : !p.paid))
+      );
+    }
+
+    return studentsWithPayments;
   }
 
-  return studentsWithPayments;
-}
-
-
-async getWorkers(): Promise<any> {
+  async getWorkers(): Promise<any> {
     const workers = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')
@@ -582,5 +596,4 @@ async getWorkers(): Promise<any> {
     const totalRevenue = rows.reduce((sum, r) => sum + Number(r.price ?? 0) * Number(r.studentcount ?? r.studentCount ?? 0), 0);
     return Number(((totalRevenue * percent) / 100).toFixed(2));
   }
-
 }

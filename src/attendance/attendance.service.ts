@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, ILike, Repository } from 'typeorm';
+import { Between, ILike, In, Repository } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -23,90 +23,165 @@ export class AttendanceService {
   ) {}
 
   async createOrUpdate(createAttendanceDto: CreateAttendanceDto, teacherId: number) {
-  const teacherRole = await this.roleRepository.findOne({ where: { name: 'teacher' } });
-  if (!teacherRole) throw new NotFoundException(`Role 'teacher' not found`);
+    const teacherRole = await this.roleRepository.findOne({ where: { name: 'teacher' } });
+    if (!teacherRole) throw new NotFoundException(`Role 'teacher' not found`);
 
-  const teacher = await this.userRepository.findOne({ where: { id: teacherId, role: teacherRole } });
-  if (!teacher) throw new NotFoundException('Teacher not found');
+    const teacher = await this.userRepository.findOne({ where: { id: teacherId, role: teacherRole } });
+    if (!teacher) throw new NotFoundException('Teacher not found');
 
-  const group = await this.groupRepository.findOne({
-    where: { id: createAttendanceDto.groupId },
-    relations: ['user'],
-  });
-  if (!group) throw new NotFoundException('Group not found');
-
-  if (group.user.id !== teacherId) {
-    throw new ForbiddenException('You can only mark attendance for your own group');
-  }
-
-  const targetDate = moment(createAttendanceDto.date, 'YYYY-MM-DD');
-  if (!targetDate.isValid()) {
-    throw new BadRequestException('Invalid date format, use YYYY-MM-DD');
-  }
-
-  const dayOfWeek = targetDate.format('dddd');
-  if (!group.daysOfWeek?.includes(dayOfWeek)) {
-    throw new BadRequestException(`Group ${group.name} does not have a lesson on ${dayOfWeek}`);
-  }
-
-  const studentRole = await this.roleRepository.findOne({ where: { name: 'student' } });
-  if (!studentRole) throw new NotFoundException(`Role 'student' not found`);
-
-  const existingAttendances = await this.attendanceRepository.find({
-    where: { group: { id: group.id }, date: targetDate.format('YYYY-MM-DD') },
-    relations: ['user'],
-  });
-
-  const results = [];
-  for (const attendanceDto of createAttendanceDto.attendances) {
-    const student = await this.userRepository.findOne({
-      where: { id: attendanceDto.studentId, role: studentRole },
+    const group = await this.groupRepository.findOne({
+      where: { id: createAttendanceDto.groupId },
+      relations: ['user', 'users'],
     });
-    if (!student) throw new NotFoundException(`Student with ID ${attendanceDto.studentId} not found`);
+    if (!group) throw new NotFoundException('Group not found');
 
-    let attendance = existingAttendances.find(a => a.user.id === student.id);
-    if (!attendance) {
-      attendance = this.attendanceRepository.create({
-        user: student,
-        group,
-        date: targetDate.format('YYYY-MM-DD'),
-        teacher,
-      });
+    if (group.user.id !== teacherId) {
+      throw new ForbiddenException('You can only mark attendance for your own group');
     }
 
-    attendance.status = attendanceDto.status;
-    attendance.grade = attendanceDto.grade ?? null;
+    const targetDate = moment(createAttendanceDto.date, 'YYYY-MM-DD');
+    if (!targetDate.isValid()) {
+      throw new BadRequestException('Invalid date format, use YYYY-MM-DD');
+    }
 
-    const saved = await this.attendanceRepository.save(attendance);
-    results.push(saved);
+    const dayOfWeek = targetDate.format('dddd');
+    if (!group.daysOfWeek?.includes(dayOfWeek)) {
+      throw new BadRequestException(`Group ${group.name} does not have a lesson on ${dayOfWeek}`);
+    }
+
+    const studentRole = await this.roleRepository.findOne({ where: { name: 'student' } });
+    if (!studentRole) throw new NotFoundException(`Role 'student' not found`);
+
+    const existingAttendances = await this.attendanceRepository.find({
+      where: { group: { id: group.id }, date: targetDate.format('YYYY-MM-DD') },
+      relations: ['user'],
+    });
+
+    const results = [];
+    for (const attendanceDto of createAttendanceDto.attendances) {
+      const studentInGroup = group.users.some(u => u.id === attendanceDto.studentId);
+      if (!studentInGroup) {
+        throw new BadRequestException(`Student with ID ${attendanceDto.studentId} is not in group ${group.id}`);
+      }
+
+      const student = await this.userRepository.findOne({
+        where: { id: attendanceDto.studentId, role: studentRole },
+      });
+      if (!student) throw new NotFoundException(`Student with ID ${attendanceDto.studentId} not found`);
+
+      let attendance = existingAttendances.find(a => a.user.id === student.id);
+      if (!attendance) {
+        attendance = this.attendanceRepository.create({
+          user: student,
+          group,
+          date: targetDate.format('YYYY-MM-DD'),
+          teacher,
+        });
+      }
+
+      attendance.status = attendanceDto.status;
+      attendance.grade = attendanceDto.grade ?? null;
+
+      const saved = await this.attendanceRepository.save(attendance);
+      results.push(saved);
+    }
+
+    return {
+      date: targetDate.format('YYYY-MM-DD'),
+      group: {
+        id: group.id,
+        name: group.name,
+        startTime: group.startTime,
+        endTime: group.endTime,
+        daysOfWeek: group.daysOfWeek,
+      },
+      teacher: {
+        id: teacher.id,
+        firstName: teacher.firstName,
+        lastName: teacher.lastName,
+        phone: teacher.phone,
+      },
+      students: results.map(r => ({
+        id: r.user.id,
+        firstName: r.user.firstName,
+        lastName: r.user.lastName,
+        address: r.user.address,
+        phone: r.user.phone,
+        grade: r.grade,
+        status: r.status,
+      })),
+    };
   }
 
-  return {
-    date: targetDate.format('YYYY-MM-DD'),
-    group: {
-      id: group.id,
-      name: group.name,
-      startTime: group.startTime,
-      endTime: group.endTime,
-      daysOfWeek: group.daysOfWeek,
-    },
-    teacher: {
-      id: teacher.id,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
-      phone: teacher.phone,
-    },
-    students: results.map(r => ({
-      id: r.user.id,
-      firstName: r.user.firstName,
-      lastName: r.user.lastName,
-      address: r.user.address,
-      phone: r.user.phone,
-      grade: r.grade,
-      status: r.status,
-    })),
-  };
-}
+  async markTeacherAttendance(teacherId: number, date: string, status: 'absent_with_reason' | 'absent_without_reason', adminId: number) {
+    const adminRoles = await this.roleRepository.find({
+      where: { name: In(['admin', 'superAdmin']) },
+    });
+    if (!adminRoles.length) throw new NotFoundException('Admin roles not found');
+
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId, role: { id: In(adminRoles.map(r => r.id)) } },
+    });
+    if (!admin) throw new ForbiddenException('Only admins or superAdmins can mark teacher attendance');
+
+    const teacherRole = await this.roleRepository.findOne({ where: { name: 'teacher' } });
+    if (!teacherRole) throw new NotFoundException(`Role 'teacher' not found`);
+
+    const teacher = await this.userRepository.findOne({ where: { id: teacherId, role: teacherRole } });
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    const targetDate = moment(date, 'YYYY-MM-DD');
+    if (!targetDate.isValid()) {
+      throw new BadRequestException('Invalid date format, use YYYY-MM-DD');
+    }
+
+    const existing = await this.attendanceRepository.findOne({
+      where: { user: { id: teacherId }, date: targetDate.format('YYYY-MM-DD'), isTeacherAttendance: true },
+    });
+
+    if (existing) {
+      existing.status = status;
+      return await this.attendanceRepository.save(existing);
+    }
+
+    const attendance = this.attendanceRepository.create({
+      user: teacher,
+      date: targetDate.format('YYYY-MM-DD'),
+      status,
+      isTeacherAttendance: true,
+      teacher: admin,
+    });
+
+    return await this.attendanceRepository.save(attendance);
+  }
+
+  async getTeacherAttendances(filters: { groupId?: number; date?: string; teacherId?: number }) {
+    const query: any = { isTeacherAttendance: true };
+    if (filters.teacherId) {
+      query.user = { id: filters.teacherId };
+    }
+    if (filters.date) {
+      query.date = filters.date;
+    }
+    if (filters.groupId) {
+      query.group = { id: filters.groupId };
+    }
+
+    const attendances = await this.attendanceRepository.find({
+      where: query,
+      relations: ['user', 'group', 'teacher'],
+      order: { date: 'DESC' },
+    });
+
+    return attendances.map(a => ({
+      id: a.id,
+      teacherName: `${a.user.firstName} ${a.user.lastName}`,
+      groupName: a.group?.name || null,
+      date: a.date,
+      status: a.status,
+      markedBy: `${a.teacher?.firstName} ${a.teacher?.lastName}`,
+    }));
+  }
 
   async findAll() {
     return this.attendanceRepository.find({
@@ -145,7 +220,7 @@ export class AttendanceService {
 
     const group = await this.groupRepository.findOne({
       where: { id: groupId },
-      relations: ['user'],
+      relations: ['user', 'users'],
     });
     if (!group) {
       throw new NotFoundException(`Group with ID ${groupId} not found`);
@@ -172,6 +247,11 @@ export class AttendanceService {
     }
 
     for (const aDto of updateAttendanceDto.attendances) {
+      const studentInGroup = group.users.some(u => u.id === aDto.studentId);
+      if (!studentInGroup) {
+        throw new BadRequestException(`Student with ID ${aDto.studentId} is not in group ${group.id}`);
+      }
+
       const student = await this.userRepository.findOne({
         where: { id: aDto.studentId, role: studentRole },
       });

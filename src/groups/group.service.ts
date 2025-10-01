@@ -22,11 +22,9 @@ export class GroupService {
     const { name, courseId, teacherId, userIds, startTime, endTime, daysOfWeek, price } =
       createGroupDto;
 
-    // 1️⃣ Course tekshirish
     const course = await this.courseRepository.findOne({ where: { id: courseId } });
     if (!course) throw new BadRequestException('Course not found');
 
-    // 2️⃣ Teacher tekshirish
     let teacher: User | null = null;
     if (teacherId) {
       teacher = await this.userRepository.findOne({
@@ -38,7 +36,6 @@ export class GroupService {
       }
     }
 
-    // 3️⃣ Studentlarni olish (userIds orqali)
     let studentEntities: User[] = [];
     if (Array.isArray(userIds) && userIds.length) {
       studentEntities = await this.userRepository.find({
