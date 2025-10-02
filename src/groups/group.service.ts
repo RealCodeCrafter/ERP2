@@ -266,66 +266,67 @@ export class GroupService {
   }
 
   async getAllGroups(search?: string): Promise<any> {
-    const groupsQuery = this.groupRepository
-      .createQueryBuilder('group')
-      .leftJoinAndSelect('group.course', 'course')
-      .leftJoinAndSelect('group.user', 'user')
-      .leftJoinAndSelect('user.role', 'userRole')
-      .leftJoinAndSelect('group.users', 'users')
-      .leftJoinAndSelect('users.role', 'usersRole')
-      .where('group.status = :status', { status: 'active' });
+  const groupsQuery = this.groupRepository
+    .createQueryBuilder('group')
+    .leftJoinAndSelect('group.course', 'course')
+    .leftJoinAndSelect('group.user', 'user')
+    .leftJoinAndSelect('user.role', 'userRole')
+    .leftJoinAndSelect('group.users', 'users')
+    .leftJoinAndSelect('users.role', 'usersRole')
+    .where('group.status = :status', { status: 'active' });
 
-    if (search && search.trim() !== '') {
-      groupsQuery.andWhere('group.name ILIKE :search', {
-        search: `%${search.trim()}%`,
-      });
-    }
-
-    const groups = await groupsQuery
-      .orderBy('group.createdAt', 'DESC')
-      .getMany();
-
-    const totalGroups = groups.length;
-    const totalStudents = groups.reduce(
-      (sum, group) =>
-        sum + (group.users?.filter((u) => u.role?.name === 'student').length || 0),
-      0,
-    );
-    const activeCourses = new Set(groups.map((group) => group.course.id)).size;
-
-    const monthStart = new Date(
-      new Date().getFullYear(),
-      new Date().getMonth(),
-      1,
-    );
-    const totalGroupsThisMonth = groups.filter(
-      (group) => group.createdAt >= monthStart,
-    ).length;
-
-    const groupList = groups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      teacher: group.user
-        ? `${group.user.firstName} ${group.user.lastName}`
-        : 'N/A',
-      course: group.course?.name || 'N/A',
-      studentCount: group.users?.filter((u) => u.role?.name === 'student').length || 0,
-      status: group.status,
-      price: group.price,
-      data: `${group.startTime} ${group.endTime}`,
-      dataDays: group.daysOfWeek,
-    }));
-
-    return {
-      statistics: {
-        totalGroups,
-        totalStudents,
-        activeCourses,
-        totalGroupsThisMonth,
-      },
-      groups: groupList,
-    };
+  if (search && search.trim() !== '') {
+    groupsQuery.andWhere('group.name ILIKE :search', {
+      search: `%${search.trim()}%`,
+    });
   }
+
+  const groups = await groupsQuery
+    .orderBy('group.createdAt', 'DESC')
+    .getMany();
+
+  const totalGroups = groups.length;
+  const totalStudents = groups.reduce(
+    (sum, group) =>
+      sum + (group.users?.filter((u) => u.role?.name === 'student').length || 0),
+    0,
+  );
+  const activeCourses = new Set(groups.map((group) => group.course.id)).size;
+
+  const monthStart = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+  );
+  const totalGroupsThisMonth = groups.filter(
+    (group) => group.createdAt >= monthStart,
+  ).length;
+
+  const groupList = groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    teacher: group.user
+      ? `${group.user.firstName} ${group.user.lastName}`
+      : 'N/A',
+    teacherId: group.user?.id || null,
+    course: group.course?.name || 'N/A',
+    studentCount: group.users?.filter((u) => u.role?.name === 'student').length || 0,
+    status: group.status,
+    price: group.price,
+    data: `${group.startTime} ${group.endTime}`,
+    dataDays: group.daysOfWeek,
+  }));
+
+  return {
+    statistics: {
+      totalGroups,
+      totalStudents,
+      activeCourses,
+      totalGroupsThisMonth,
+    },
+    groups: groupList,
+  };
+}
 
   async searchGroups(name?: string, teacherName?: string): Promise<Group[]> {
     const qb = this.groupRepository
