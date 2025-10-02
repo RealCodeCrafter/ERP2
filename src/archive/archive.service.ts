@@ -31,16 +31,35 @@ export class ArchiveService {
     return this.archivedUserRepository.save(entity);
   }
 
-  async findAll(filters: { firstName?: string; lastName?: string; phone?: string; roleId?: number }): Promise<ArchivedUser[]> {
+  async findAll(filters: { firstName?: string; lastName?: string; phone?: string; roleId?: number }): Promise<any[]> {
     const query: any = {};
     if (filters.firstName) query.firstName = ILike(`%${filters.firstName}%`);
     if (filters.lastName) query.lastName = ILike(`%${filters.lastName}%`);
     if (filters.phone) query.phone = ILike(`%${filters.phone}%`);
     if (filters.roleId) query.roleId = filters.roleId;
 
-    return this.archivedUserRepository.find({ where: query });
+    const archivedUsers = await this.archivedUserRepository.find({ where: query });
+
+    const roleIds = [...new Set(archivedUsers.map(user => user.roleId))];
+    const roles = await this.roleRepository.find({ where: { id: In(roleIds) } });
+    const roleMap = new Map(roles.map(role => [role.id, role.name]));
+
+    return archivedUsers.map(user => ({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      username: user.username,
+      address: user.address,
+      specialty: user.specialty,
+      salary: user.salary,
+      percent: user.percent,
+      roleId: user.roleId,
+      roleName: roleMap.get(user.roleId) || null,
+    }));
   }
 
+  
   async findOne(id: number): Promise<ArchivedUser> {
     const archivedUser = await this.archivedUserRepository.findOne({
       where: { id },
