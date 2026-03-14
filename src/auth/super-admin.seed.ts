@@ -16,7 +16,7 @@ export class SuperAdminSeedService implements OnModuleInit {
 
   async onModuleInit() {
     const username = 'superadmin';
-    const plainPassword = 'SuperAdmin123!'; // xohlasangiz keyin .env dan olasiz
+    const plainPassword = '1234'; // siz so'ragan parol
 
     // superadmin allaqachon bormi?
     const existing = await this.userRepository.findOne({
