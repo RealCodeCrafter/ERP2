@@ -29,17 +29,24 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<{ accessToken: string; user: any }> {
     const { username, password } = loginDto;
 
+    console.log('LOGIN START:', { username });
+
     const user = await this.findUserWithPassword(username);
+    console.log('LOGIN USER FOUND:', !!user);
     if (!user) {
+      console.log('LOGIN ERROR: user not found');
       throw new UnauthorizedException('Foydalanuvchi topilmadi');
     }
 
     if (!user.password) {
+      console.log('LOGIN ERROR: no password for user');
       throw new UnauthorizedException('Ushbu foydalanuvchi uchun parol o‘rnatilmagan');
     }
 
     const isValid = await bcrypt.compare(password, user.password);
+    console.log('LOGIN PASSWORD VALID:', isValid);
     if (!isValid) {
+      console.log('LOGIN ERROR: wrong password');
       throw new UnauthorizedException('Parol noto‘g‘ri');
     }
 
@@ -50,6 +57,7 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
+    console.log('LOGIN SUCCESS, TOKEN CREATED');
 
     const { password: _, ...safeUser } = user;
     return { accessToken, user: { ...safeUser, role: user.role.name } };
